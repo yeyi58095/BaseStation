@@ -5,6 +5,7 @@
 #include <tchar.h>
 //---------------------------------------------------------------------------
 USEFORM("Unit5.cpp", Form5);
+USEFORM("CharterDialog.cpp", Charter);
 //---------------------------------------------------------------------------
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 {
@@ -13,6 +14,7 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 		Application->Initialize();
 		Application->MainFormOnTaskBar = true;
 		Application->CreateForm(__classid(TForm5), &Form5);
+		Application->CreateForm(__classid(TCharter), &Charter);
 		Application->Run();
 	}
 	catch (Exception &exception)
