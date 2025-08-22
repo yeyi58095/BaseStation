@@ -1,6 +1,7 @@
 #pragma once
 #include <System.hpp>  // AnsiString
 #include "RandomVar.h"
+#include <deque>
 enum DistKind {
     DIST_NORMAL      = 0,
     DIST_EXPONENTIAL = 1,
@@ -29,5 +30,21 @@ public:
     int ITdistri;
     int STdistri;
     double ITpara1, ITpara2;
-    double STpara1, STpara2;
+	double STpara1, STpara2;
+
+public:
+    // ... 你原本的介面都保留
+
+    // ---- Master 會用到的 4 個動作 ----
+    void    enqueueArrival();      // 到達：把新封包放進佇列
+    bool    canServe() const;      // 是否可以開始服務（預設：有貨且沒在服）
+    double  startService();        // 從佇列取一個、標記服務中，回傳 service time
+    void    finishService();       // 一個服務完成，清除旗標
+
+    // 兩個抽樣：你已經有 sampleIT()/sampleST()
+
+public: //（你說想全 public，就放這邊）
+	std::deque<int> q;   // 放封包 id（先用 int counter 代替）
+	bool  serving ;
+	int   nextPktId ;
 };

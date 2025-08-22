@@ -36,3 +36,4 @@ void __fastcall TChooser::Button2Click(TObject *Sender)
 	methodChooser->Show();
 }
 //---------------------------------------------------------------------------
+

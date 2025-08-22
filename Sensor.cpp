@@ -10,6 +10,10 @@ Sensor::Sensor(int id) : id(id)
     ITpara1 = 1.0; ITpara2 = 0.0;         // λ = 1.0
 	STpara1 = 1.5; STpara2 = 0.0;         // μ = 1.5   // mu is equal to lambda, in mathemetic expression,
 										  // the only difference is on the statical meaning
+	 // 在建構子裡加預設
+	serving = false;
+	this->nextPktId = 0;
+
 }
 
 void Sensor::setIT(int method, double para1, double para2)
@@ -101,5 +105,30 @@ double Sensor::sampleST() const {
         case 2: return rv::uniform(STpara1, STpara2);
         default: return rv::exponential(1.0);
     }
+}
+
+///////////////////////////////////////////////////
+
+
+
+void Sensor::enqueueArrival() {
+    q.push_back(nextPktId++);   // 之後要追蹤封包 ID 就用這個
+}
+
+bool Sensor::canServe() const {
+    return !serving && !q.empty();
+}
+
+double Sensor::startService() {
+    if (q.empty()) return 0.0;
+    q.pop_front();
+    serving = true;
+    double st = sampleST();
+    if (st <= 1e-9) st = 1e-9;  // 避免非指數分佈抽到非正時間
+    return st;
+}
+
+void Sensor::finishService() {
+    serving = false;
 }
 

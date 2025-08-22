@@ -9,6 +9,8 @@
 #include <Vcl.Forms.hpp>
 #include <vector>
 #include "Sensor.h"
+
+#include "Master.h"
 //---------------------------------------------------------------------------
 class TForm5 : public TForm
 {

@@ -24,9 +24,9 @@ void __fastcall TmethodChooser::FormShow(TObject *Sender)
 	AnsiString str = "" ;
 
 	if(style== 1){
-		str = "IT";
+		str = "IT ";
 	}else{
-		str = "ST";
+		str = "ST ";
 	}
 
 	methodChooser->Label1->Caption = "Sensor :" + id + ", is for " + str;
@@ -35,8 +35,8 @@ void __fastcall TmethodChooser::FormShow(TObject *Sender)
 //---------------------------------------------------------------------------
 void __fastcall TmethodChooser::ComboBox1Change(TObject *Sender)
 {
- int a = 0;
 	parameterSetter->Show();
+	Close();
 
 }
 //---------------------------------------------------------------------------

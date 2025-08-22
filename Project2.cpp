@@ -5,9 +5,9 @@
 #include <tchar.h>
 //---------------------------------------------------------------------------
 USEFORM("Unit5.cpp", Form5);
-USEFORM("CharterDialog.cpp", Charter);
-USEFORM("ChooseITorST.cpp", Chooser);
 USEFORM("ChooseMethodDialog.cpp", methodChooser);
+USEFORM("ChooseITorST.cpp", Chooser);
+USEFORM("CharterDialog.cpp", Charter);
 USEFORM("ParaSetterDialog.cpp", parameterSetter);
 //---------------------------------------------------------------------------
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)

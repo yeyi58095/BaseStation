@@ -130,6 +130,12 @@
             <DependentOn>ChooseMethodDialog.h</DependentOn>
             <BuildOrder>11</BuildOrder>
         </CppCompile>
+        <CppCompile Include="Master.cpp">
+            <BuildOrder>14</BuildOrder>
+        </CppCompile>
+        <None Include="Master.h">
+            <BuildOrder>13</BuildOrder>
+        </None>
         <None Include="MMEngine.h">
             <BuildOrder>6</BuildOrder>
         </None>
@@ -168,9 +174,9 @@
             <BuildOrder>2</BuildOrder>
         </CppCompile>
         <FormResources Include="Unit5.dfm"/>
-        <FormResources Include="CharterDialog.dfm"/>
-        <FormResources Include="ChooseITorST.dfm"/>
         <FormResources Include="ChooseMethodDialog.dfm"/>
+        <FormResources Include="ChooseITorST.dfm"/>
+        <FormResources Include="CharterDialog.dfm"/>
         <FormResources Include="ParaSetterDialog.dfm"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
@@ -252,27 +258,12 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployClass Name="DependencyModule">
-                    <Platform Name="Win32">
-                        <Operation>0</Operation>
-                        <Extensions>.dll;.bpl</Extensions>
-                    </Platform>
+                <DeployClass Name="ProjectiOSDeviceResourceRules">
                     <Platform Name="iOSDevice64">
                         <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
-                    </Platform>
-                    <Platform Name="OSX32">
-                        <RemoteDir>Contents\MacOS</RemoteDir>
-                        <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
                     </Platform>
                     <Platform Name="iOSDevice32">
                         <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
-                    </Platform>
-                    <Platform Name="iOSSimulator">
-                        <Operation>1</Operation>
-                        <Extensions>.dylib</Extensions>
                     </Platform>
                 </DeployClass>
                 <DeployClass Name="ProjectOSXResource">
@@ -626,12 +617,27 @@
                         <Operation>1</Operation>
                     </Platform>
                 </DeployClass>
-                <DeployClass Name="ProjectiOSDeviceResourceRules">
+                <DeployClass Name="DependencyModule">
+                    <Platform Name="Win32">
+                        <Operation>0</Operation>
+                        <Extensions>.dll;.bpl</Extensions>
+                    </Platform>
                     <Platform Name="iOSDevice64">
                         <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                    <Platform Name="OSX32">
+                        <RemoteDir>Contents\MacOS</RemoteDir>
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
                     </Platform>
                     <Platform Name="iOSDevice32">
                         <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
+                    </Platform>
+                    <Platform Name="iOSSimulator">
+                        <Operation>1</Operation>
+                        <Extensions>.dylib</Extensions>
                     </Platform>
                 </DeployClass>
                 <ProjectRoot Platform="iOSDevice64" Name="$(PROJECTNAME).app"/>

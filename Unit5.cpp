@@ -90,10 +90,10 @@ void __fastcall TForm5::generatorButtonClick(TObject *Sender)
 
 void __fastcall TForm5::DubugClick(TObject *Sender)
 {
-	Sensor* s1 = new Sensor(1);
+	/*Sensor* s1 = new Sensor(1);
 	Sensor* s2 = new Sensor(2);
-	/*s1->setIT(1, 2);
-	s1->setST(2, 1.2, 4);        */
+	//s1->setIT(1, 2);
+	//s1->setST(2, 1.2, 4);
 
 	AnsiString msg = "" ;
 	//msg += s1->toString();
@@ -108,7 +108,28 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	 for(int i = 0; i < v.size(); i++){
 		msg += IntToStr(v[i]) + ", ";
 	 }
-	Form5->DebugLabel->Caption = msg;
+	Form5->DebugLabel->Caption = msg;   */
+
+	std::vector<Sensor*> sensors;
+	sim::Master master;
+
+	// generatorButtonClick ¸Ì¡G
+	for (int i = 0; i < sensorAmount; ++i) {
+		Sensor* s = new Sensor(i);
+		s->setArrivalExp(1.0);
+		s->setServiceExp(1.5);
+		sensors.push_back(s);
+		selectSensorComboBox->Items->Add(IntToStr(i+1));
+	}
+	master.setSensors(&sensors);
+	master.setEndTime(10000);
+	master.setSwitchOver(0.0);
+
+	// ¶]
+	master.run();
+	double meanQ = (master.now > 0) ? (master.sumQ / master.now) : 0.0;
+	ShowMessage("served=" + IntToStr(master.served) +
+				", meanQ=" + FloatToStrF(meanQ, ffFixed, 7, 4));
 }
 //---------------------------------------------------------------------------
 
@@ -121,6 +142,7 @@ void __fastcall TForm5::selectSensorComboBoxChange(TObject *Sender)
 	Chooser->Show();
 }
 //---------------------------------------------------------------------------
+
 
 
 
