@@ -6,9 +6,10 @@ Sensor::Sensor(int id) : id(id)
     // 把'成員預設值'放這裡（bcc32 不吃 { } 內初始化）
     max_queue_size = 2147483647;          // 或 <climits> 的 INT_MAX
     ITdistri = DIST_EXPONENTIAL;
-    STdistri = DIST_EXPONENTIAL;
+	STdistri = DIST_EXPONENTIAL;
     ITpara1 = 1.0; ITpara2 = 0.0;         // λ = 1.0
-    STpara1 = 1.5; STpara2 = 0.0;         // μ = 1.5
+	STpara1 = 1.5; STpara2 = 0.0;         // μ = 1.5   // mu is equal to lambda, in mathemetic expression,
+										  // the only difference is on the statical meaning
 }
 
 void Sensor::setIT(int method, double para1, double para2)
@@ -66,7 +67,7 @@ AnsiString Sensor::toString() const
             msg += "(unknown)";
             break;
     }
-
-    return msg;
+	msg += "\n";
+	return msg;
 }
 
