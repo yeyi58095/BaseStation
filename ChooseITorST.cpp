@@ -4,6 +4,7 @@
 #pragma hdrstop
 
 #include "ChooseITorST.h"
+#include "ChooseMethodDialog.h"
 #include "Unit5.h"
 //---------------------------------------------------------------------------
 #pragma package(smart_init)
@@ -25,10 +26,13 @@ void __fastcall TChooser::OnShow(TObject *Sender)
 void __fastcall TChooser::Button1Click(TObject *Sender)
 {
 	state = 1;
+	methodChooser->Show();
+
 }
 //---------------------------------------------------------------------------
 void __fastcall TChooser::Button2Click(TObject *Sender)
 {
 	state = 2;
+	methodChooser->Show();
 }
 //---------------------------------------------------------------------------

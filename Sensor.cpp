@@ -71,3 +71,17 @@ AnsiString Sensor::toString() const
 	return msg;
 }
 
+AnsiString Sensor::dict(int a){
+	switch(a){
+		case 0:
+			return "normal";
+
+		case 1:
+			return "exponential";
+
+		case 2:
+			return "uniform";
+		default:
+			return "unkown";
+	}
+}

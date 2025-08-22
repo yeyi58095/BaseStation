@@ -17,9 +17,9 @@ public:
 
     // 方便在選 exponential 時使用
     void setArrivalExp(double lambda) { setIT(DIST_EXPONENTIAL, lambda); }
-    void setServiceExp(double mu)     { setST(DIST_EXPONENTIAL, mu); }
-
-    AnsiString toString() const;
+	void setServiceExp(double mu)     { setST(DIST_EXPONENTIAL, mu); }
+	AnsiString toString() const;
+	static AnsiString dict(int );
 
 public:
     int id;
