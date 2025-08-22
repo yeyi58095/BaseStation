@@ -1,4 +1,4 @@
-//---------------------------------------------------------------------------
+﻿//---------------------------------------------------------------------------
 
 #include <vcl.h>
 #pragma hdrstop
@@ -6,6 +6,7 @@
 //---------------------------------------------------------------------------
 USEFORM("Unit5.cpp", Form5);
 USEFORM("CharterDialog.cpp", Charter);
+USEFORM("ChooseITorST.cpp", Form1);
 //---------------------------------------------------------------------------
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 {
@@ -15,6 +16,7 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 		Application->MainFormOnTaskBar = true;
 		Application->CreateForm(__classid(TForm5), &Form5);
 		Application->CreateForm(__classid(TCharter), &Charter);
+		Application->CreateForm(__classid(TForm1), &Form1);
 		Application->Run();
 	}
 	catch (Exception &exception)

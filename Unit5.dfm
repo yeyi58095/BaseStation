@@ -2,8 +2,8 @@ object Form5: TForm5
   Left = 0
   Top = 0
   Caption = 'Form5'
-  ClientHeight = 267
-  ClientWidth = 462
+  ClientHeight = 255
+  ClientWidth = 660
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -20,6 +20,13 @@ object Form5: TForm5
     Height = 13
     Caption = 'Sensor Amount'
   end
+  object DebugLabel: TLabel
+    Left = 416
+    Top = 24
+    Width = 56
+    Height = 13
+    Caption = 'DebugLabel'
+  end
   object Button1: TButton
     Left = 480
     Top = 261
@@ -33,7 +40,7 @@ object Form5: TForm5
     Left = 120
     Top = 21
     Width = 73
-    Height = 16
+    Height = 21
     TabOrder = 1
     Text = '1'
     OnChange = sensorAmountEditChange
@@ -54,5 +61,15 @@ object Form5: TForm5
     Height = 21
     TabOrder = 3
     Text = 'selectSensorComboBox'
+    OnChange = selectSensorComboBoxChange
+  end
+  object Dubug: TButton
+    Left = 303
+    Top = 19
+    Width = 75
+    Height = 25
+    Caption = 'Dubug'
+    TabOrder = 4
+    OnClick = DubugClick
   end
 end
