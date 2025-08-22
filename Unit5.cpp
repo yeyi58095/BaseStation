@@ -11,10 +11,13 @@
 #pragma package(smart_init)
 #pragma resource "*.dfm"
 TForm5 *Form5;
+int sensorAmount;
 //---------------------------------------------------------------------------
 __fastcall TForm5::TForm5(TComponent* Owner)
 	: TForm(Owner)
 {
+	sensorAmount = 1;
+	Form5->selectSensorComboBox->ItemIndex = 0;
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm5::Button1Click(TObject *Sender)
@@ -36,4 +39,25 @@ void __fastcall TForm5::Button1Click(TObject *Sender)
 }
 //---------------------------------------------------------------------------
 
+void __fastcall TForm5::sensorAmountEditChange(TObject *Sender)
+{
+	if(Form5->sensorAmountEdit->Text != ""){
+		sensorAmount = StrToInt(Form5->sensorAmountEdit->Text);
+	}
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TForm5::generatorButtonClick(TObject *Sender)
+{
+	//reset();
+	Form5->selectSensorComboBox->Clear();
+
+	for(int i = 1; i <= sensorAmount; i++){
+		Form5->selectSensorComboBox->Items->Add(i);
+	}
+
+	Form5->selectSensorComboBox->ItemIndex = 0;
+
+}
+//---------------------------------------------------------------------------
 

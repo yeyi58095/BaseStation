@@ -12,7 +12,13 @@ class TForm5 : public TForm
 {
 __published:	// IDE-managed Components
 	TButton *Button1;
+	TLabel *Label1;
+	TEdit *sensorAmountEdit;
+	TButton *generatorButton;
+	TComboBox *selectSensorComboBox;
 	void __fastcall Button1Click(TObject *Sender);
+	void __fastcall sensorAmountEditChange(TObject *Sender);
+	void __fastcall generatorButtonClick(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);
