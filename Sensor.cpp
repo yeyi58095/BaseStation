@@ -85,3 +85,21 @@ AnsiString Sensor::dict(int a){
 			return "unkown";
 	}
 }
+
+double Sensor::sampleIT() const {
+    switch (ITdistri) {
+		case 0: return rv::normal(ITpara1, ITpara2);
+        case 1: return rv::exponential(ITpara1); // £f
+        case 2: return rv::uniform(ITpara1, ITpara2);
+        default: return rv::exponential(1.0);
+    }
+}
+double Sensor::sampleST() const {
+    switch (STdistri) {
+        case 0: return rv::normal(STpara1, STpara2);
+        case 1: return rv::exponential(STpara1); // £g
+        case 2: return rv::uniform(STpara1, STpara2);
+        default: return rv::exponential(1.0);
+    }
+}
+

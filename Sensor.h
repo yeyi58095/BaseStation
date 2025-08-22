@@ -1,6 +1,6 @@
 #pragma once
 #include <System.hpp>  // AnsiString
-
+#include "RandomVar.h"
 enum DistKind {
     DIST_NORMAL      = 0,
     DIST_EXPONENTIAL = 1,
@@ -20,6 +20,8 @@ public:
 	void setServiceExp(double mu)     { setST(DIST_EXPONENTIAL, mu); }
 	AnsiString toString() const;
 	static AnsiString dict(int );
+	double sampleIT() const;
+	double sampleST() const;
 
 public:
     int id;
