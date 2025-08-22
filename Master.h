@@ -1,66 +1,68 @@
 #pragma once
 #include <vector>
 
-// 只做前置宣告，避免循環相依；Master.cpp 再 #include "Sensor.h"
+// 前置宣告（避免循環 include）
 class Sensor;
 
 namespace sim {
 
-//=== 事件型別：目前先用兩種（Arrival/Departure）。之後你要加 POLL/EP 都能擴。===
+// 事件型別：現在只用到「到達 / 離開」兩種
 enum EventType { EV_ARRIVAL = 0, EV_DEPARTURE = 1 };
 
-//=== FEL（Future Event List）的節點：用有序 linked list 以時間遞增插入。===
+// FEL 節點（用有序 linked list，時間小的在前）
 struct EvNode {
-    double   t;    // 事件發生時間（秒）
-    EventType tp;  // 事件種類
-    int      sid;  // 哪一個 sensor（0..N-1）
+    double   t;    // 事件時間
+    EventType tp;  // 事件型別
+    int      sid;  // 哪個 sensor 的事件（0..N-1）
     EvNode*  next; // 下一個節點
     EvNode(double tt, EventType ty, int id) : t(tt), tp(ty), sid(id), next(0) {}
 };
 
-//=== Master：全域排程器（管理 FEL + 決定誰上機）。===
-// 需求對應：
-// - 你要所有成員 public → 全部 public，便於你在 Debug 視窗觀察。
-// - Master 不擁有 sensors 的生命週期（指標由外部 vector 管）。
+// Master：事件排程器（平行伺服器版）
+// - 每個 sensor 都有自己的到達/服務，互不干擾
+// - FEL（future event list）仍集中在 Master 管
 class Master {
 public:
-    // --------- 公開資料（方便你在 IDE 監看） ---------
-    std::vector<Sensor*>* sensors; // 指向外部的 Sensor* 容器；不擁有！
-    EvNode*  felHead;              // FEL 的 dummy head（head->next 是第一個事件）
+    // ===== 全部 public，方便你在 IDE 監看 =====
+    std::vector<Sensor*>* sensors; // 外部擁有；Master 不負責 delete
+    EvNode*  felHead;              // FEL dummy head（head->next 是第一個事件）
     double   endTime;              // 模擬終止時間（秒）
-    double   switchover;           // 切換/輪詢開銷 τ（秒），簡化處理：直接加在 service 完成時間
-    double   now;                  // 目前模擬時間（秒）
-    bool     serverBusy;           // 伺服器是否在服務某個 sensor
+    double   now;                  // 目前模擬時間
+    double   switchover;           // 切換開銷（秒）；平行伺服器通常設 0
+    // （Shared 版本會用到的旗標，這裡保留但不使用）
+    bool     serverBusy;
 
-    // （可選）統計：用「面積法」計平均佇列長度；served 計完成數
-    double   prev;                 // 上次更新統計的時間
-    double   sumQ;                 // ∫ totalQueue(t) dt 的累積
-    int      served;               // 完成服務的封包數
+    // ===== 統計 =====
+    double   prev;       // 上一次做統計積分的時間
+    double   sumQ;       // ∫ 全部佇列長度總和 dt  → Lq_total = sumQ / T
+    double   sumSystem;  // ∫ (全部佇列 + 忙碌伺服器數) dt → L_total = sumSystem / T
+    double   busySum;    // ∫ 忙碌伺服器的「數量」 dt       → 平均每台忙碌率 = busySum / (T * N)
+    int      arrivals;   // 到達封包總數（全部 sensor 合計）
+    int      served;     // 完成封包總數（全部 sensor 合計）
 
-    // --------- 介面函式 ---------
-    Master();                      // 設定預設值並建好 FEL 的 dummy head
-    ~Master();                     // 釋放 FEL 節點
+    // ===== 介面 =====
+    Master();
+    ~Master();
 
-    void setSensors(std::vector<Sensor*>* v);  // 指定 sensors 容器（不複製）
-    void setEndTime(double T);                 // 設定模擬時間上限
-    void setSwitchOver(double s);              // 設定 τ
-    void reset();                              // 將時間/狀態/FEL 清回起始
-    void run();                                // 主迴圈：從 FEL 取事件一路跑到 endTime
+    void setSensors(std::vector<Sensor*>* v);
+    void setEndTime(double T);
+    void setSwitchOver(double s);
 
-    // --------- FEL 操作（公開讓你 debug/擴充容易） ---------
-    void felClear();                           // 清空 FEL（保留 dummy）
-    void felPush(double t, EventType tp, int sid); // 以時間排序插入
-    bool felPop(double& t, EventType& tp, int& sid); // 取最早事件；若空回 false
+    void reset();           // 清 FEL、時間、統計
+    void run_parallel();    // 「平行伺服器」模式：各 sensor 獨立服務
 
-    // --------- 排程策略（之後可換成多策略） ---------
-    int  chooseNext();                         // 回傳要上機的 sensor id；-1 表示目前無人可服
-    void startService(int sid);                // 讓 sid 開始服務，並排 DEPARTURE
+    // ===== FEL 操作（公開，方便 debug/擴充）=====
+    void felClear();
+    void felPush(double t, EventType tp, int sid);
+    bool felPop(double& t, EventType& tp, int& sid);
 
-    // --------- 統計（面積法） ---------
-    void accumulateQ();                       // 在 now 時刻更新 sumQ/prev
+    // ===== 排程動作 =====
+    void startService(int sid); // 讓 sid 開始服務，並排它自己的 EV_DEPARTURE
 
-    // 小常數：避免抽到非正時間
-    static double EPS;
+    // ===== 統計積分 =====
+    void accumulateQ();     // 用 [prev, now] 這段更新 Lq/L 與忙碌伺服器數的積分
+
+    static double EPS;      // 避免抽到非正時間用的最小值（例如 1e-9）
 };
 
 } // namespace sim

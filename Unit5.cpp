@@ -87,49 +87,92 @@ void __fastcall TForm5::generatorButtonClick(TObject *Sender)
 }
 
 //---------------------------------------------------------------------------
+	   #include <System.Classes.hpp>  // TStringList
+void SaveMsgToFile(const AnsiString& msg, const AnsiString& fileName)
+{
+    TStringList* sl = new TStringList();
+    sl->Text = msg;
+    sl->SaveToFile(fileName);   // 預設 ANSI；要 UTF-8 可改用 TEncoding
+    delete sl;
+}
+
+
 
 void __fastcall TForm5::DubugClick(TObject *Sender)
 {
-	/*Sensor* s1 = new Sensor(1);
-	Sensor* s2 = new Sensor(2);
-	//s1->setIT(1, 2);
-	//s1->setST(2, 1.2, 4);
-
-	AnsiString msg = "" ;
-	//msg += s1->toString();
-	//msg += "\n";
-	//msg += s2->toString();
-
-	 std::vector<int> v;
-	 for(int i = 0; i< 3; i++){
-		v.push_back(i);
-	 }
-
-	 for(int i = 0; i < v.size(); i++){
-		msg += IntToStr(v[i]) + ", ";
-	 }
-	Form5->DebugLabel->Caption = msg;   */
-
-	std::vector<Sensor*> sensors;
 	sim::Master master;
+	int n = sensorAmount;
+	// 清掉舊的物件，避免記憶體漏
+	for (size_t i = 0; i < sensors.size(); ++i) delete sensors[i];
+	sensors.clear();
 
-	// generatorButtonClick 裡：
-	for (int i = 0; i < sensorAmount; ++i) {
+	// 重建
+	for (int i = 0; i < n; ++i) {
 		Sensor* s = new Sensor(i);
 		s->setArrivalExp(1.0);
 		s->setServiceExp(1.5);
 		sensors.push_back(s);
-		selectSensorComboBox->Items->Add(IntToStr(i+1));
+	}
+	master.setSensors(&sensors);
+
+	// 建 sensors 的地方（維持你現在的寫法）
+	//sensors->clear();
+
+	for (int i = 0; i < n; ++i) {
+		Sensor* s = new Sensor(i);
+		s->setArrivalExp(1.0);  // 每條線自己的 λ
+		s->setServiceExp(1.5);  // 每條線自己的 μ
+		sensors.push_back(s);
 	}
 	master.setSensors(&sensors);
 	master.setEndTime(10000);
-	master.setSwitchOver(0.0);
+	master.setSwitchOver(0.0);  // 平行線通常 0
 
 	// 跑
-	master.run();
-	double meanQ = (master.now > 0) ? (master.sumQ / master.now) : 0.0;
-	ShowMessage("served=" + IntToStr(master.served) +
-				", meanQ=" + FloatToStrF(meanQ, ffFixed, 7, 4));
+	master.run_parallel();
+
+	// 報表（總量）
+	double T = master.now;
+	int N = (int)sensors.size();
+
+	double Lq_total   = (T>0) ? master.sumQ / T       : 0.0;
+	double L_total    = (T>0) ? master.sumSystem / T  : 0.0;
+	double busy_avg   = (T>0 && N>0) ? master.busySum / (T * N) : 0.0; // 平均每台忙碌率
+	double thr_total  = (T>0) ? (double)master.served   / T : 0.0;      // 總吞吐
+	double lambda_tot = (T>0) ? (double)master.arrivals / T : 0.0;
+
+	AnsiString msg;
+	msg += "T            = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
+	msg += "served       = " + IntToStr(master.served) + "\n";
+	msg += "arrivals     = " + IntToStr(master.arrivals) + "\n";
+	msg += "Lq_total     = " + FloatToStrF(Lq_total,  ffFixed, 7, 4) + "\n";
+	msg += "L_total      = " + FloatToStrF(L_total,   ffFixed, 7, 4) + "\n";
+	msg += "busy_avg     = " + FloatToStrF(busy_avg,  ffFixed, 7, 4) + "  (平均每台)\n";
+	msg += "throughput   = " + FloatToStrF(thr_total, ffFixed, 7, 4) + "  (總)\n";
+	msg += "lambda_tot   = " + FloatToStrF(lambda_tot,ffFixed, 7, 4) + "\n";
+
+	// 只有當所有 Sensor 的 IT/ST 都是 Exponential 時做理論對照
+	bool theory_ok = true;
+	double Lq_th_sum = 0.0, L_th_sum = 0.0;
+	for (int i = 0; i < N; ++i) {
+		Sensor* s = sensors[i];
+		if (s->ITdistri != DIST_EXPONENTIAL || s->STdistri != DIST_EXPONENTIAL) { theory_ok = false; break; }
+		double lambda = s->ITpara1;
+		double mu     = s->STpara1;
+		double rho    = lambda / mu;
+		if (rho >= 1.0) { theory_ok = false; break; }
+		Lq_th_sum += (rho*rho) / (1.0 - rho);
+		L_th_sum  +=  rho      / (1.0 - rho);
+	}
+	if (theory_ok) {
+		msg += "— Theory (sum of per-queue M/M/1) —\n";
+		msg += "Lq_total(th) = " + FloatToStrF(Lq_th_sum, ffFixed, 7, 4) + "\n";
+		msg += "L_total(th)  = " + FloatToStrF(L_th_sum,  ffFixed, 7, 4) + "\n";
+	} else {
+		msg += "(No closed-form theory: non-exp or some rho>=1)\n";
+	}
+	SaveMsgToFile(msg, "report.txt");
+	ShowMessage(msg);
 }
 //---------------------------------------------------------------------------
 
