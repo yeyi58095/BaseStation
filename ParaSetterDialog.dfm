@@ -25,14 +25,14 @@ object parameterSetter: TparameterSetter
     Left = 240
     Top = 32
     Width = 31
-    Height = 41
+    Height = 13
     Caption = 'Label2'
   end
   object Label3: TLabel
     Left = 25
     Top = 8
-    Width = 57
-    Height = 15
+    Width = 31
+    Height = 13
     Caption = 'Label3'
   end
   object Edit1: TEdit

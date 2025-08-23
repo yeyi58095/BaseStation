@@ -15,11 +15,12 @@ TparameterSetter *parameterSetter;
 __fastcall TparameterSetter::TparameterSetter(TComponent* Owner)
 	: TForm(Owner)
 {
+
 }
 //---------------------------------------------------------------------------
 void __fastcall TparameterSetter::OnShow(TObject *Sender)
 {
-	parameterSetter->Label3->Caption = methodChooser->Label1->Caption + Sensor::dict(methodChooser->ComboBox1->ItemIndex);
+	parameterSetter->Label3->Caption = methodChooser->Label1->Caption + methodChooser->ComboBox1->ItemIndex;
 	int index = Form5->selectSensorComboBox->ItemIndex;
 	Sensor* s = Form5->sensors[index];
 

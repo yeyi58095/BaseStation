@@ -1,7 +1,7 @@
 object Form5: TForm5
   Left = 0
   Top = 0
-  Caption = 'Form5'
+  Caption = 's'
   ClientHeight = 396
   ClientWidth = 791
   Color = clBtnFace
@@ -28,11 +28,39 @@ object Form5: TForm5
     Caption = 'DebugLabel'
   end
   object Label2: TLabel
-    Left = 32
-    Top = 96
+    Left = 31
+    Top = 304
     Width = 51
     Height = 13
     Caption = 'Visit Which'
+  end
+  object Label3: TLabel
+    Left = 65
+    Top = 70
+    Width = 40
+    Height = 13
+    Caption = 'endTime'
+  end
+  object Label4: TLabel
+    Left = 51
+    Top = 97
+    Width = 54
+    Height = 13
+    Caption = 'switchOver'
+  end
+  object Label5: TLabel
+    Left = 16
+    Top = 124
+    Width = 89
+    Height = 13
+    Caption = 'max charging slots'
+  end
+  object Label6: TLabel
+    Left = 162
+    Top = 124
+    Width = 52
+    Height = 13
+    Caption = '0 for inifity'
   end
   object Button1: TButton
     Left = 0
@@ -79,8 +107,8 @@ object Form5: TForm5
     OnClick = DubugClick
   end
   object selectVisitComboBox: TComboBox
-    Left = 89
-    Top = 93
+    Left = 96
+    Top = 301
     Width = 145
     Height = 21
     TabOrder = 5
@@ -115,12 +143,39 @@ object Form5: TForm5
     end
   end
   object plotButton: TButton
-    Left = 56
-    Top = 160
+    Left = 64
+    Top = 336
     Width = 75
     Height = 25
     Caption = 'plot'
     TabOrder = 7
     OnClick = plotButtonClick
+  end
+  object endTimeEdit: TEdit
+    Left = 111
+    Top = 70
+    Width = 121
+    Height = 21
+    TabOrder = 8
+    Text = '10000'
+    OnChange = endTimeEditChange
+  end
+  object switchOverEdit: TEdit
+    Left = 111
+    Top = 97
+    Width = 121
+    Height = 21
+    TabOrder = 9
+    Text = '0'
+    OnChange = switchOverEditChange
+  end
+  object maxCharginSlotEdit: TEdit
+    Left = 111
+    Top = 124
+    Width = 28
+    Height = 21
+    TabOrder = 10
+    Text = '0'
+    OnChange = maxCharginSlotEditChange
   end
 end

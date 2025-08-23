@@ -34,12 +34,22 @@ __published:	// IDE-managed Components
 	TFastLineSeries *SeriesCurrent;
 	TFastLineSeries *SeriesMean;
 	TButton *plotButton;
+	TLabel *Label3;
+	TEdit *endTimeEdit;
+	TLabel *Label4;
+	TEdit *switchOverEdit;
+	TLabel *Label5;
+	TEdit *maxCharginSlotEdit;
+	TLabel *Label6;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);
 	void __fastcall selectSensorComboBoxChange(TObject *Sender);
 	void __fastcall selectVisitComboBoxChange(TObject *Sender);
 	void __fastcall plotButtonClick(TObject *Sender);
+	void __fastcall endTimeEditChange(TObject *Sender);
+	void __fastcall switchOverEditChange(TObject *Sender);
+	void __fastcall maxCharginSlotEditChange(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);
