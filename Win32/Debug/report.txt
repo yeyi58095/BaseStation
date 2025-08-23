@@ -1,0 +1,15 @@
+T            = 10000.00
+served       = 10015
+arrivals     = 10020
+Lq_hat       = 1.3232
+L_hat        = 1.9848
+busy_hat     = 0.6616
+throughput   = 1.0015 (? £f if stable)
+lambda_hat   = 1.0020
+mu_hat       = 1.5138
+¡X Theory (M/M/1 aggregate) ¡X
+lambda_tot  = 1.0000
+mu          = 1.5000
+rho         = 0.6667
+Lq(theory)  = 1.3333
+L(theory)   = 2.0000
