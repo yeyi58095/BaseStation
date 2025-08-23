@@ -18,6 +18,9 @@ int sensorAmount;
 // 建議：在表單成員放
 std::vector<Sensor*> sensors;
 sim::Master master;
+void PlotTraceOne(int);
+void PlotTraceAll(int);
+
 //---------------------------------------------------------------------------
 __fastcall TForm5::TForm5(TComponent* Owner)
 	: TForm(Owner)
@@ -64,11 +67,17 @@ void __fastcall TForm5::generatorButtonClick(TObject *Sender)
 	for (int i=0;i<n;++i) {
         Sensor* s = new Sensor(i);
         s->setArrivalExp(1.0);  // λ_i，UI 再改
-        s->setServiceExp(1.5);  // μ_i，UI 再改
-        sensors.push_back(s);
+		s->setServiceExp(1.5);  // μ_i，UI 再改
+		sensors.push_back(s);
 		selectSensorComboBox->Items->Add(IntToStr(i+1));
-		selectVisitComboBox->Items->Add(IntToStr(i+1));
 	}
+
+    selectVisitComboBox->Clear();
+	selectVisitComboBox->Items->Add("All sensors"); // index 0
+	for (int i=0;i<n;++i)
+		selectVisitComboBox->Items->Add("Sensor " + IntToStr(i+1));
+	selectVisitComboBox->ItemIndex = 0;
+
     master.setSensors(&sensors);
     master.setEndTime(10000);
 	if (n>0) selectSensorComboBox->ItemIndex = 0;
@@ -93,8 +102,8 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	rv::reseed(12345);
 	master.run();
 
-	AnsiString all = master.reportAll();
-	ShowMessage(all);
+	//AnsiString all = master.reportAll();
+	//ShowMessage(all);
 }
 //---------------------------------------------------------------------------
 
@@ -108,16 +117,57 @@ void __fastcall TForm5::selectSensorComboBoxChange(TObject *Sender)
 }
 //---------------------------------------------------------------------------
 
-
-
-
-
-
 void __fastcall TForm5::selectVisitComboBoxChange(TObject *Sender)
 {
 	int sid = this->selectVisitComboBox->ItemIndex;
-	AnsiString msg = master.reportOne(sid);
+	if(sid == 0){
+		AnsiString msg = master.reportAll();
+		ShowMessage(msg);
+		return ;
+	}
+	PlotTraceOne(sid-1);
+	AnsiString msg = master.reportOne(sid - 1);
 	ShowMessage(msg);
+}
+//---------------------------------------------------------------------------
+
+void PlotTraceAll() {
+    Form5->SeriesCurrent->Clear();
+    Form5->SeriesMean->Clear();
+
+    Form5->Chart1->BottomAxis->Title->Caption = "Time";
+    Form5->Chart1->LeftAxis->Title->Caption   = "Queue size";
+
+    const std::vector<double>& t = master.traceT_all;
+    const std::vector<double>& q = master.traceQ_all;
+    const std::vector<double>& m = master.traceMeanQ_all;
+
+    for (size_t k=0;k<t.size();++k) {
+        Form5->SeriesCurrent->AddXY(t[k], q[k], "", clRed);
+        Form5->SeriesMean->AddXY(t[k],    m[k], "", clBlue);
+    }
+}
+
+void PlotTraceOne(int sid) {
+    Form5->SeriesCurrent->Clear();
+    Form5->SeriesMean->Clear();
+
+    Form5->Chart1->BottomAxis->Title->Caption = "Time";
+    Form5->Chart1->LeftAxis->Title->Caption   = "Queue size";
+
+    const std::vector<double>& t = master.traceT[sid];
+    const std::vector<double>& q = master.traceQ[sid];
+    const std::vector<double>& m = master.traceMeanQ[sid];
+
+    for (size_t k=0;k<t.size();++k) {
+        Form5->SeriesCurrent->AddXY(t[k], q[k], "", clRed);
+        Form5->SeriesMean->AddXY(t[k],    m[k], "", clBlue);
+    }
+}
+
+void __fastcall TForm5::plotButtonClick(TObject *Sender)
+{
+		 PlotTraceAll();
 }
 //---------------------------------------------------------------------------
 

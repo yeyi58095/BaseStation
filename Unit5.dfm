@@ -2,8 +2,8 @@ object Form5: TForm5
   Left = 0
   Top = 0
   Caption = 'Form5'
-  ClientHeight = 255
-  ClientWidth = 660
+  ClientHeight = 396
+  ClientWidth = 791
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -35,8 +35,8 @@ object Form5: TForm5
     Caption = 'Visit Which'
   end
   object Button1: TButton
-    Left = 480
-    Top = 261
+    Left = 0
+    Top = -7
     Width = 75
     Height = 25
     Caption = 'Button1'
@@ -87,5 +87,41 @@ object Form5: TForm5
     TabOrder = 5
     Text = 'selectVisitComboBox'
     OnChange = selectVisitComboBoxChange
+  end
+  object Chart1: TChart
+    Left = 303
+    Top = 96
+    Width = 400
+    Height = 250
+    Title.Text.Strings = (
+      'TChart')
+    TabOrder = 6
+    DefaultCanvas = 'TGDIPlusCanvas'
+    ColorPaletteIndex = 13
+    object SeriesCurrent: TFastLineSeries
+      Title = 'Current'
+      LinePen.Color = 10708548
+      XValues.Name = 'X'
+      XValues.Order = loAscending
+      YValues.Name = 'Y'
+      YValues.Order = loNone
+    end
+    object SeriesMean: TFastLineSeries
+      Title = 'Mean'
+      LinePen.Color = 3513587
+      XValues.Name = 'X'
+      XValues.Order = loAscending
+      YValues.Name = 'Y'
+      YValues.Order = loNone
+    end
+  end
+  object plotButton: TButton
+    Left = 56
+    Top = 160
+    Width = 75
+    Height = 25
+    Caption = 'plot'
+    TabOrder = 7
+    OnClick = plotButtonClick
   end
 end

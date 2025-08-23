@@ -74,6 +74,23 @@ public:
     // 給 UI 的單一 Sensor 報表（回傳 AnsiString）
 	AnsiString reportOne(int sid) const;
 	AnsiString reportAll() const;
+
+
+
+// ... 你的 Master 類別其它成員都保留
+
+public:
+    bool recordTrace;  // 是否紀錄軌跡（預設 true）
+
+    // 每個 sensor 的時間序列：t、即時Q、平均Q
+    std::vector< std::vector<double> > traceT;
+    std::vector< std::vector<double> > traceQ;
+    std::vector< std::vector<double> > traceMeanQ;
+
+    // 全體加總的時間序列
+    std::vector<double> traceT_all;
+    std::vector<double> traceQ_all;
+	std::vector<double> traceMeanQ_all;
 };
 
 } // namespace sim

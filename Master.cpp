@@ -28,7 +28,13 @@ void Master::setSensors(std::vector<Sensor*>* v) {
     sumL.assign(N, 0.0);
     busySum.assign(N, 0.0);
     served.assign(N, 0);
-    arrivals.assign(N, 0);
+	arrivals.assign(N, 0);
+
+	recordTrace = true;
+    traceT.assign(N, std::vector<double>());
+    traceQ.assign(N, std::vector<double>());
+    traceMeanQ.assign(N, std::vector<double>());
+	traceT_all.clear(); traceQ_all.clear(); traceMeanQ_all.clear();
 }
 
 void Master::reset() {
@@ -43,7 +49,15 @@ void Master::reset() {
         busySum[i] = 0.0;
         served[i] = 0;
         arrivals[i] = 0;
-    }
+	}
+
+	if (recordTrace) {
+        for (int i=0;i<N;++i){ traceT[i].clear(); traceQ[i].clear(); traceMeanQ[i].clear(); }
+        traceT_all.clear(); traceQ_all.clear(); traceMeanQ_all.clear();
+        // 可選：push 初始 0 點
+        // for (int i=0;i<N;++i){ traceT[i].push_back(0); traceQ[i].push_back(0); traceMeanQ[i].push_back(0); }
+        // traceT_all.push_back(0); traceQ_all.push_back(0); traceMeanQ_all.push_back(0);
+	}
 }
 
 // 主迴圈（每個 sensor 自己一條 M/M/1）
@@ -133,11 +147,11 @@ void Master::felPush(double t, EventType tp, int sid) {
 
 bool Master::felPop(double& t, EventType& tp, int& sid) {
     EvNode* n = felHead->next;
-    if (!n) return false;
-    felHead->next = n->next;
-    t = n->t; tp = n->tp; sid = n->sid;
-    delete n;
-    return true;
+	if (!n) return false;
+	felHead->next = n->next;
+	t = n->t; tp = n->tp; sid = n->sid;
+	delete n;
+	return true;
 }
 
 // ========== 統計（面積法）==========
@@ -150,17 +164,39 @@ void Master::accumulate() {
     if (dt <= 0) { prev = now; return; }
 
     int N = (sensors ? (int)sensors->size() : 0);
-    for (int i = 0; i < N; ++i) {
+    int totalQ = 0;
+    for (int i=0;i<N;++i) {
         Sensor* s = (*sensors)[i];
-        int qlen = (int)s->q.size();      // 你現在把 q/serving 做成 public，這樣讀最快
+        int qlen = (int)s->q.size();
         int sys  = qlen + (s->serving ? 1 : 0);
+
         sumQ[i]    += dt * qlen;
         sumL[i]    += dt * sys;
         busySum[i] += dt * (s->serving ? 1 : 0);
+
+        totalQ += qlen;
+
+        if (recordTrace) {
+            traceT[i].push_back(now);
+            traceQ[i].push_back(qlen);
+            double meanQ = (now > 0) ? (sumQ[i] / now) : 0.0;
+            traceMeanQ[i].push_back(meanQ);
+        }
+    }
+
+    if (recordTrace) {
+        traceT_all.push_back(now);
+        traceQ_all.push_back(totalQ);
+        // 全體的 meanQ = (sum_i sumQ[i]) / now
+        double sumQtot = 0.0;
+        for (int i=0;i<N;++i) sumQtot += sumQ[i];
+        traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
     }
 
     prev = now;
 }
+
+
 
 // ========== 產生單一 sid 的報表 ==========
 AnsiString Master::reportOne(int sid) const {
