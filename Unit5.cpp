@@ -200,3 +200,4 @@ void __fastcall TForm5::maxCharginSlotEditChange(TObject *Sender)
 //---------------------------------------------------------------------------
 
 
+

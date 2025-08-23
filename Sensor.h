@@ -48,6 +48,14 @@ public:
     void   addEnergy(int units);       // increase EP by integer units, clamp to cap
 
     // info
-    AnsiString toString() const;
+	AnsiString toString() const;
+
+public:
+	// 在 public 加上（預設值可放建構子）
+	int Qmax;    // -1 = 無限
+	int drops;   // tail-drop 次數
+
+	void setQmax(int m) { Qmax = m; }
+	void preloadDP(int n) { while (n-- > 0) enqueueArrival(); } // 初始塞封包
 };
 

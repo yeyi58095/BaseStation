@@ -122,6 +122,9 @@ object Form5: TForm5
     Height = 250
     Title.Text.Strings = (
       'TChart')
+    Chart3DPercent = 1
+    View3D = False
+    Zoom.Pen.Width = 0
     TabOrder = 6
     DefaultCanvas = 'TGDIPlusCanvas'
     ColorPaletteIndex = 13

@@ -8,9 +8,11 @@ Sensor::Sensor(int id)
   ITdistri(DIST_EXPONENTIAL), STdistri(DIST_EXPONENTIAL),
   ITpara1(1.0), ITpara2(0.0),
   STpara1(1.5), STpara2(0.0),
-  energy(0), E_cap(100), r_tx(1), charge_rate(1.0)
+  energy(0), E_cap(100), r_tx(1), charge_rate(1.0),
+  Qmax(-1), drops(0)                // <-- 新增預設
 {
 }
+
 
 void Sensor::setIT(int method, double p1, double p2) {
     ITdistri = method; ITpara1 = p1; ITpara2 = p2;
@@ -38,6 +40,10 @@ double Sensor::sampleST() const {
 
 void Sensor::enqueueArrival() {
     static int nextId = 1;
+    if (Qmax >= 0 && (int)q.size() >= Qmax) {  // 滿了就丟
+        drops++;
+        return;
+    }
     q.push_back(nextId++);
 }
 
@@ -106,4 +112,6 @@ AnsiString Sensor::toString() const {
            ", charge_rate=" + FloatToStrF(charge_rate, ffFixed, 7, 3) + "\n";
     return msg;
 }
+
+
 

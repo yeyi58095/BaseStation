@@ -244,21 +244,40 @@ AnsiString Master::reportOne(int sid) const {
     AnsiString out;
     if (!sensors || sid < 0 || sid >= (int)sensors->size()) return "Invalid sensor id.\n";
 
+    const Sensor* s = (*sensors)[sid];
     double T = now;
-    double Lq_hat   = (T > 0) ? (sumQ[sid] / T) : 0.0;
-    double thr_hat  = (T > 0) ? ((double)served[sid] / T) : 0.0;
-    double lam_hat  = (T > 0) ? ((double)arrivals[sid] / T) : 0.0;
+
+    int    A  = arrivals[sid];      // offered arrivals
+    int    D  = s->drops;           // drops at queue-full
+    int    S  = served[sid];        // completed
+    int    B  = (int)s->q.size() + (s->serving ? 1 : 0); // backlog at end
+
+    double Lq_hat  = (T > 0) ? (sumQ[sid] / T) : 0.0;
+    double lam_off = (T > 0) ? ((double)A / T) : 0.0;    // offered rate
+    double lam_car = (T > 0) ? ((double)S / T) : 0.0;    // carried rate (throughput)
+    double loss    = (A > 0) ? ((double)D / (double)A) : 0.0;
+    double Wq_hat  = (lam_car > 0) ? (Lq_hat / lam_car) : 0.0;
 
     out += "Sensor " + IntToStr(sid+1) + "\n";
     out += "T            = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
-    out += "served       = " + IntToStr(served[sid]) + "\n";
-    out += "arrivals     = " + IntToStr(arrivals[sid]) + "\n";
-    out += "Lq_hat       = " + FloatToStrF(Lq_hat,   ffFixed, 7, 4) + "\n";
-    out += "throughput   = " + FloatToStrF(thr_hat,  ffFixed, 7, 4) + "\n";
-    out += "lambda_hat   = " + FloatToStrF(lam_hat,  ffFixed, 7, 4) + "\n";
+    out += "arrivals(A)  = " + IntToStr(A) + "  (offered)\n";
+    out += "drops(D)     = " + IntToStr(D) + "\n";
+    out += "served(S)    = " + IntToStr(S) + "  (carried)\n";
+    out += "backlog(B)   = " + IntToStr(B) + "  (end of run)\n";
+    out += "Lq_hat       = " + FloatToStrF(Lq_hat,  ffFixed, 7, 4) + "\n";
+    out += "lambda_off   = " + FloatToStrF(lam_off, ffFixed, 7, 4) + "\n";
+    out += "lambda_car   = " + FloatToStrF(lam_car, ffFixed, 7, 4) + "  (= throughput)\n";
+    out += "loss_rate    = " + FloatToStrF(loss,    ffFixed, 7, 4) + "  (= D/A)\n";
+    out += "Wq_hat       = " + FloatToStrF(Wq_hat,  ffFixed, 7, 4) + "  (Little: Lq/λ_car)\n";
+
+    // 守恆檢查（有助 debug）：A ?= D + S + B
+    out += "A ?= D + S + B  →  " + IntToStr(A) + " ?= "
+         + IntToStr(D + S + B) + "\n";
+
     out += "(Shared-HAP w/ FDM charging; no simple closed form)\n";
     return out;
 }
+
 
 AnsiString Master::reportAll() const {
     AnsiString out;
@@ -266,26 +285,41 @@ AnsiString Master::reportAll() const {
     if (N == 0) return "No sensors.\n";
     double T = now;
 
-    long long served_tot = 0, arrivals_tot = 0;
+    long long A=0, D=0, S=0, B=0;
     double sumQtot = 0.0;
-    for (int i=0;i<N;++i) { served_tot += served[i]; arrivals_tot += arrivals[i]; sumQtot += sumQ[i]; }
+    for (int i=0;i<N;++i) {
+        const Sensor* s = (*sensors)[i];
+        A += arrivals[i];
+        D += s->drops;
+        S += served[i];
+        B += (int)s->q.size() + (s->serving ? 1 : 0);
+        sumQtot += sumQ[i];
+    }
 
     double Lq_hat   = (T > 0) ? (sumQtot / T) : 0.0;
-    double thr_hat  = (T > 0) ? ((double)served_tot / T) : 0.0;
-    double lam_hat  = (T > 0) ? ((double)arrivals_tot / T) : 0.0;
+    double lam_off  = (T > 0) ? ((double)A / T) : 0.0;
+    double lam_car  = (T > 0) ? ((double)S / T) : 0.0;
+    double loss     = (A > 0) ? ((double)D / (double)A) : 0.0;
+    double Wq_hat   = (lam_car > 0) ? (Lq_hat / lam_car) : 0.0;
     double txBusy   = (T > 0) ? (busySumTx / T) : 0.0;
     double avgCharg = (T > 0) ? (chargeCountInt / T) : 0.0;
 
     out += "=== Overall ===\n";
     out += "T            = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
-    out += "served_tot   = " + IntToStr((int)served_tot) + "\n";
-    out += "arrivals_tot = " + IntToStr((int)arrivals_tot) + "\n";
+    out += "arrivals(A)  = " + IntToStr((int)A) + "\n";
+    out += "drops(D)     = " + IntToStr((int)D) + "\n";
+    out += "served(S)    = " + IntToStr((int)S) + "\n";
+    out += "backlog(B)   = " + IntToStr((int)B) + "\n";
     out += "Lq_hat       = " + FloatToStrF(Lq_hat,   ffFixed, 7, 4) + "\n";
-    out += "throughput   = " + FloatToStrF(thr_hat,  ffFixed, 7, 4) + "\n";
-    out += "lambda_hat   = " + FloatToStrF(lam_hat,  ffFixed, 7, 4) + "\n";
+    out += "lambda_off   = " + FloatToStrF(lam_off,  ffFixed, 7, 4) + "\n";
+    out += "lambda_car   = " + FloatToStrF(lam_car,  ffFixed, 7, 4) + "\n";
+    out += "loss_rate    = " + FloatToStrF(loss,     ffFixed, 7, 4) + "  (= D/A)\n";
+    out += "Wq_hat       = " + FloatToStrF(Wq_hat,   ffFixed, 7, 4) + "  (Little: Lq/λ_car)\n";
     out += "TX busy      = " + FloatToStrF(txBusy,   ffFixed, 7, 4) + "\n";
-    out += "avg charging = " + FloatToStrF(avgCharg, ffFixed, 7, 4) + "  (sensors in charge)\n";
+    out += "avg charging = " + FloatToStrF(avgCharg, ffFixed, 7, 4) + "\n";
+    out += "A ?= D + S + B  →  " + IntToStr((int)A) + " ?= " + IntToStr((int)(D+S+B)) + "\n";
     out += "(Shared-HAP w/ FDM charging; no simple closed form)\n";
     return out;
 }
+
 
