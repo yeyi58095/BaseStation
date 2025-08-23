@@ -1,11 +1,11 @@
 T            = 10000.00
-served       = 19891
-arrivals     = 19895
-Lq_total     = 2.5285
-L_total      = 3.8390
-busy_avg     = 0.6552  (平均每台)
-throughput   = 1.9891  (總)
-lambda_tot   = 1.9895
+served       = 40233
+arrivals     = 40236
+Lq_total     = 5.3976
+L_total      = 8.0648
+busy_avg     = 0.6668  (平均每台)
+throughput   = 4.0233  (總)
+lambda_tot   = 4.0236
 — Theory (sum of per-queue M/M/1) —
-Lq_total(th) = 2.6667
-L_total(th)  = 4.0000
+Lq_total(th) = 5.3333
+L_total(th)  = 8.0000
