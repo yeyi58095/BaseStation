@@ -34,7 +34,6 @@ __published:	// IDE-managed Components
 	TFastLineSeries *SeriesCurrent;
 	TFastLineSeries *SeriesMean;
 	TButton *plotButton;
-	void __fastcall Button1Click(TObject *Sender);
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);

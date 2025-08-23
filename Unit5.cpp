@@ -20,8 +20,6 @@ std::vector<Sensor*> sensors;
 sim::Master master;
 void PlotTraceOne(int);
 void PlotTraceAll(int);
-
-//---------------------------------------------------------------------------
 __fastcall TForm5::TForm5(TComponent* Owner)
 	: TForm(Owner)
 {
@@ -29,7 +27,7 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	Form5->selectSensorComboBox->ItemIndex = 0;
 }
 //---------------------------------------------------------------------------
-void __fastcall TForm5::Button1Click(TObject *Sender)
+/*void __fastcall TForm5::Button1Click(TObject *Sender)
 {
 	Person* p = new Person(L"Ji", 12);
 
@@ -45,7 +43,7 @@ void __fastcall TForm5::Button1Click(TObject *Sender)
 
 
 	delete p;
-}
+}  */
 //---------------------------------------------------------------------------
 
 void __fastcall TForm5::sensorAmountEditChange(TObject *Sender)
