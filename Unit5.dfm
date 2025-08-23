@@ -27,6 +27,13 @@ object Form5: TForm5
     Height = 13
     Caption = 'DebugLabel'
   end
+  object Label2: TLabel
+    Left = 32
+    Top = 96
+    Width = 51
+    Height = 13
+    Caption = 'Visit Which'
+  end
   object Button1: TButton
     Left = 480
     Top = 261
@@ -71,5 +78,14 @@ object Form5: TForm5
     Caption = 'Dubug'
     TabOrder = 4
     OnClick = DubugClick
+  end
+  object selectVisitComboBox: TComboBox
+    Left = 89
+    Top = 93
+    Width = 145
+    Height = 21
+    TabOrder = 5
+    Text = 'selectVisitComboBox'
+    OnChange = selectVisitComboBoxChange
   end
 end

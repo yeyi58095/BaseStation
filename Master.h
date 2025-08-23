@@ -1,66 +1,79 @@
 #pragma once
 #include <vector>
-
-// 只做前置宣告，避免循環相依；Master.cpp 再 #include "Sensor.h"
+#include <System.hpp>   // for AnsiString
+// 前置宣告，避免循環 include；Master.cpp 再 #include "Sensor.h"
 class Sensor;
 
 namespace sim {
 
-//=== 事件型別：目前先用兩種（Arrival/Departure）。之後你要加 POLL/EP 都能擴。===
+// 事件型別：只有「到達/離開」兩種即可（每個 sid 獨立服務）
 enum EventType { EV_ARRIVAL = 0, EV_DEPARTURE = 1 };
 
-//=== FEL（Future Event List）的節點：用有序 linked list 以時間遞增插入。===
+// FEL 節點（時間遞增的單向串列）
 struct EvNode {
-    double   t;    // 事件發生時間（秒）
-    EventType tp;  // 事件種類
-    int      sid;  // 哪一個 sensor（0..N-1）
-    EvNode*  next; // 下一個節點
+    double    t;     // 事件時間
+    EventType tp;    // 類型
+    int       sid;   // 哪個 sensor
+    EvNode*   next;  // 下一個
     EvNode(double tt, EventType ty, int id) : t(tt), tp(ty), sid(id), next(0) {}
 };
 
-//=== Master：全域排程器（管理 FEL + 決定誰上機）。===
-// 需求對應：
-// - 你要所有成員 public → 全部 public，便於你在 Debug 視窗觀察。
-// - Master 不擁有 sensors 的生命週期（指標由外部 vector 管）。
+// =======================
+// Master：事件管理 + 統計
+//（每個 Sensor 各自一台伺服器，不互相排他）
+// =======================
 class Master {
+public:  // 你指定全部公開，方便監看
+    // ---- 外部提供的 sensors（Master 不擁有生命週期） ----
+    std::vector<Sensor*>* sensors;
+
+    // ---- FEL（dummy head）----
+    EvNode*  felHead;
+
+    // ---- 模擬設定/狀態 ----
+    double   endTime;      // 模擬終止時間
+    double   now;          // 目前時間
+    double   prev;         // 上一次積分時間
+    static double EPS;     // 最小正時間
+
+    // ---- 每個 sensor 的統計（length = sensors->size()）----
+    // 面積法：sumQ[i] = ∫ queue_i(t) dt
+    //         sumL[i] = ∫ systemSize_i(t) dt（= queue_i + (serving?1:0)）
+    // busySum[i] = ∫ 1_{serving_i}(t) dt
+    std::vector<double> sumQ;
+    std::vector<double> sumL;
+    std::vector<double> busySum;
+
+    // 計數
+    std::vector<int>    served;     // 完成數
+    std::vector<int>    arrivals;   // 到達數
+
 public:
-    // --------- 公開資料（方便你在 IDE 監看） ---------
-    std::vector<Sensor*>* sensors; // 指向外部的 Sensor* 容器；不擁有！
-    EvNode*  felHead;              // FEL 的 dummy head（head->next 是第一個事件）
-    double   endTime;              // 模擬終止時間（秒）
-    double   switchover;           // 切換/輪詢開銷 τ（秒），簡化處理：直接加在 service 完成時間
-    double   now;                  // 目前模擬時間（秒）
-    bool     serverBusy;           // 伺服器是否在服務某個 sensor
+    Master();
+    ~Master();
 
-    // （可選）統計：用「面積法」計平均佇列長度；served 計完成數
-    double   prev;                 // 上次更新統計的時間
-    double   sumQ;                 // ∫ totalQueue(t) dt 的累積
-    int      served;               // 完成服務的封包數
+    // 指定 sensors 容器後，Master 會根據大小配置統計陣列
+    void setSensors(std::vector<Sensor*>* v);
 
-    // --------- 介面函式 ---------
-    Master();                      // 設定預設值並建好 FEL 的 dummy head
-    ~Master();                     // 釋放 FEL 節點
+    void setEndTime(double T) { endTime = T; }
 
-    void setSensors(std::vector<Sensor*>* v);  // 指定 sensors 容器（不複製）
-    void setEndTime(double T);                 // 設定模擬時間上限
-    void setSwitchOver(double s);              // 設定 τ
-    void reset();                              // 將時間/狀態/FEL 清回起始
-    void run();                                // 主迴圈：從 FEL 取事件一路跑到 endTime
+    // 重新歸零狀態與 FEL（不刪 sensors）
+    void reset();
 
-    // --------- FEL 操作（公開讓你 debug/擴充容易） ---------
-    void felClear();                           // 清空 FEL（保留 dummy）
-    void felPush(double t, EventType tp, int sid); // 以時間排序插入
-    bool felPop(double& t, EventType& tp, int& sid); // 取最早事件；若空回 false
+    // 主迴圈：排每個 sid 的第一個 ARRIVAL，然後一直 pop 最早事件
+    void run();
 
-    // --------- 排程策略（之後可換成多策略） ---------
-    int  chooseNext();                         // 回傳要上機的 sensor id；-1 表示目前無人可服
-    void startService(int sid);                // 讓 sid 開始服務，並排 DEPARTURE
+    // ===== FEL 操作（公開，方便你 debug）=====
+    void felClear();                                  // 清空（保留 dummy）
+    void felPush(double t, EventType tp, int sid);    // 依時間插入
+    bool felPop(double& t, EventType& tp, int& sid);  // 取出最早事件
 
-    // --------- 統計（面積法） ---------
-    void accumulateQ();                       // 在 now 時刻更新 sumQ/prev
+    // 積分統計：把 [prev, now] 這段對每個 sid 的 Q/L/Busy 都加起來
+    void accumulate();
 
-    // 小常數：避免抽到非正時間
-    static double EPS;
+    // 給 UI 的單一 Sensor 報表（回傳 AnsiString）
+	AnsiString reportOne(int sid) const;
+	AnsiString reportAll() const;
 };
 
 } // namespace sim

@@ -1,24 +1,15 @@
-#include "Master.h"
-#include "Sensor.h"  // ³o¸Ì¤~»İ­n§¹¾ã©w¸q¡]¥Î¨ì sampleIT µ¥¡^
+ï»¿#include "Master.h"
+#include "Sensor.h"
+#include <System.SysUtils.hpp>  // IntToStr / FloatToStrF
 
 using namespace sim;
 
-// ¤p±`¼Æªì©l¤Æ
 double Master::EPS = 1e-9;
 
 Master::Master()
-: sensors(0),
-  felHead(0),
-  endTime(10000.0),
-  switchover(0.0),
-  now(0.0),
-  serverBusy(false),
-  prev(0.0),
-  sumQ(0.0),
-  served(0)
+: sensors(0), felHead(0), endTime(10000.0), now(0.0), prev(0.0)
 {
-    // «Ø¥ß FEL ªº dummy head¡]¹ê»Ú²Ä¤@­Ó¨Æ¥ó¦b head->next¡^
-    felHead = new EvNode(0.0, EV_ARRIVAL, -1);
+    felHead = new EvNode(0.0, EV_ARRIVAL, -1); // dummy
     felHead->next = 0;
 }
 
@@ -28,74 +19,91 @@ Master::~Master() {
     felHead = 0;
 }
 
-void Master::setSensors(std::vector<Sensor*>* v) { sensors = v; }
-void Master::setEndTime(double T)                { endTime = T; }
-void Master::setSwitchOver(double s)             { switchover = s; }
+void Master::setSensors(std::vector<Sensor*>* v) {
+    sensors = v;
 
-// ±N®É¶¡/²Î­p/FEL ²M¦^°_©lª¬ºA
-void Master::reset() {
-    now = 0.0;
-    serverBusy = false;
-    prev = 0.0;
-    sumQ = 0.0;
-    served = 0;
-    felClear();
+    // ä¾ sensors æ•¸é‡é…ç½®/æ¸…é›¶çµ±è¨ˆ
+    int N = (sensors ? (int)sensors->size() : 0);
+    sumQ.assign(N, 0.0);
+    sumL.assign(N, 0.0);
+    busySum.assign(N, 0.0);
+    served.assign(N, 0);
+    arrivals.assign(N, 0);
 }
 
-// ¥D°j°é¡G1) ¨C­Ó sensor ¥ı±Æ²Ä¤@­Ó¨ì¹F¡F2) ¤£Â_ pop ³Ì¦­¨Æ¥ó¨Ã³B²z
+void Master::reset() {
+    now = 0.0;
+    prev = 0.0;
+    felClear();
+
+    int N = (sensors ? (int)sensors->size() : 0);
+    for (int i = 0; i < N; ++i) {
+        sumQ[i] = 0.0;
+        sumL[i] = 0.0;
+        busySum[i] = 0.0;
+        served[i] = 0;
+        arrivals[i] = 0;
+    }
+}
+
+// ä¸»è¿´åœˆï¼ˆæ¯å€‹ sensor è‡ªå·±ä¸€æ¢ M/M/1ï¼‰
+// - EV_ARRIVAL(sid): è©² sid ä½‡åˆ—+1ï¼›è‹¥å¯æœå‹™å°±ç«‹åˆ»é–‹å§‹ï¼Œä¸¦æ’ DEPARTURE(sid)
+//                    åŒæ™‚æ’ä¸‹ä¸€å€‹ ARRIVAL(sid)
+// - EV_DEPARTURE(sid): è©² sid å®Œæˆä¸€æ¬¡ï¼›è‹¥ä½‡åˆ—>0 å°±ç›´æ¥æ¥ä¸‹ä¸€å€‹
 void Master::run() {
     if (!sensors || sensors->empty()) return;
 
     reset();
 
-    // 1) ªì©l¤Æ¡G¬°¨C­Ó sensor ±Æ¡u²Ä¤@­Ó¨ì¹F¡v
+    // 1) åˆå§‹ï¼šæ¯å€‹ sid å…ˆæ’ç¬¬ä¸€å€‹ ARRIVAL
     for (int i = 0; i < (int)sensors->size(); ++i) {
         double dt = (*sensors)[i]->sampleIT();
         if (dt <= EPS) dt = EPS;
         felPush(now + dt, EV_ARRIVAL, i);
     }
 
-    // 2) ¥D¨Æ¥ó°j°é
+    // 2) äº‹ä»¶è¿´åœˆ
     double t; EventType tp; int sid;
     while (felPop(t, tp, sid)) {
-        if (t > endTime) {                 // ¶W¹L²×¤î®É¶¡´Nµ²§ô
-            now = endTime;
-            accumulateQ();                 // ¸É³Ì«á¤@¬q
-            break;
-        }
-
+        if (t > endTime) { now = endTime; accumulate(); break; }
         now = t;
-        accumulateQ();                     // ¥Î [prev, now] ³o¬q§ó·s­±¿n
+        accumulate(); // åœ¨é€²è¡Œç‹€æ…‹è®Šæ›´ä¹‹å‰ï¼Œå…ˆæŠŠä¸Šä¸€æ®µæ™‚é–“çš„ L/Q/Busy ç©åˆ†èµ·ä¾†
+
+        Sensor* s = (*sensors)[sid];
 
         switch (tp) {
             case EV_ARRIVAL: {
-                // ¸Ó sensor ¨Ó¤@­Ó«Ê¥]¡G¥á¶i¦î¦C
-                Sensor* s = (*sensors)[sid];
+                // å…¥ä½‡åˆ—
                 s->enqueueArrival();
+                arrivals[sid] += 1;
 
-                // ¥ß¨è±Æ¤U¤@­Ó¸Ó sensor ªº¨ì¹F
-                double dt = s->sampleIT();
-                if (dt <= EPS) dt = EPS;
-                felPush(now + dt, EV_ARRIVAL, sid);
+                // åŒæ™‚æ’ä¸‹ä¸€å€‹åˆ°é”
+                {
+                    double dt2 = s->sampleIT();
+                    if (dt2 <= EPS) dt2 = EPS;
+                    felPush(now + dt2, EV_ARRIVAL, sid);
+                }
 
-                // ­Y¦øªA¾¹ªÅ¡A¹Á¸Õ¶}¤u
-                if (!serverBusy) {
-                    int pick = chooseNext();
-                    if (pick >= 0) startService(pick);
+                // è‹¥æ²’åœ¨æœå‹™ï¼Œç«‹åˆ»é–‹å§‹
+                if (s->canServe()) {
+                    double st = s->startService();
+                    if (st <= EPS) st = EPS;
+                    felPush(now + st, EV_DEPARTURE, sid);
                 }
                 break;
             }
 
             case EV_DEPARTURE: {
-                // ¦³¤@­ÓªA°È§¹¦¨
-                Sensor* s = (*sensors)[sid];
+                // å®Œæˆä¸€æ¬¡æœå‹™
                 s->finishService();
-                serverBusy = false;
-                served += 1;
+                served[sid] += 1;
 
-                // ¬İ¤U¤@­Ó­nªA°È½Ö
-                int pick = chooseNext();
-                if (pick >= 0) startService(pick);
+                // è‹¥ä½‡åˆ—é‚„æœ‰è²¨ï¼Œç«‹åˆ»æ¥ä¸‹ä¸€å€‹ï¼ˆåŒä¸€æ¢ç·šä¸éœ€è¦ç­‰åˆ¥äººï¼‰
+                if (s->canServe()) {
+                    double st = s->startService();
+                    if (st <= EPS) st = EPS;
+                    felPush(now + st, EV_DEPARTURE, sid);
+                }
                 break;
             }
         }
@@ -103,25 +111,18 @@ void Master::run() {
         if (now >= endTime) break;
     }
 
-    // ¦¬§À¡G¦pªG FEL ¥ıªÅ¤F¡A¦ı®É¶¡ÁÙ¨S¨ì¡A¸É³Ì«á¤@¬q²Î­p
-    if (now < endTime) {
-        now = endTime;
-        accumulateQ();
-    }
+    // æ”¶å°¾ï¼šè‹¥æ™‚é–“é‚„æ²’èµ°åˆ° endTimeï¼ŒæŠŠæœ€å¾Œä¸€æ®µç©åˆ†è£œä¸Š
+    if (now < endTime) { now = endTime; accumulate(); }
 }
 
-//===== FEL ¾Ş§@ =====
+// ========== FEL ==========
+
 void Master::felClear() {
     EvNode* c = felHead->next;
-    while (c) {
-        EvNode* d = c;
-        c = c->next;
-        delete d;
-    }
+    while (c) { EvNode* d = c; c = c->next; delete d; }
     felHead->next = 0;
 }
 
-// ¨Ì®É¶¡»¼¼W´¡¤J¡]Ã­©w±Æ§Ç¡G¬Û¦P®É¶¡«ö¥ı¨Ó¥ıªA°È¡^
 void Master::felPush(double t, EventType tp, int sid) {
     EvNode* n = new EvNode(t, tp, sid);
     EvNode* cur = felHead;
@@ -130,7 +131,6 @@ void Master::felPush(double t, EventType tp, int sid) {
     cur->next = n;
 }
 
-// ¨ú¥X³Ì¦­ªº¤@µ§¨Æ¥ó¡F­YµL¨Æ¥ó¦^ false
 bool Master::felPop(double& t, EventType& tp, int& sid) {
     EvNode* n = felHead->next;
     if (!n) return false;
@@ -140,44 +140,137 @@ bool Master::felPop(double& t, EventType& tp, int& sid) {
     return true;
 }
 
-//===== µ¦²¤¡G¬D¡u¦î¦C³Ì¦h¥B¥iªA°È¡vªº sensor =====
-// ¥iª½±µ´«¦¨§Aªº DF/CDF/CEF/CEDF µû¤À¡C
-int Master::chooseNext() {
-    if (!sensors) return -1;
-    int pick = -1;
-    int bestQLen = -1;
-
-    for (int i = 0; i < (int)sensors->size(); ++i) {
-        Sensor* s = (*sensors)[i];
-        if (!s->canServe()) continue;
-        int qlen = (int)s->q.size(); // §A²{¦b q ¬O public¡F¤£·Q¼ÉÅS´N°µ accessor
-        if (qlen > bestQLen) { bestQLen = qlen; pick = i; }
-    }
-    return pick;
-}
-
-// Åı sid ¶}©lªA°È¡G¥Ñ Sensor ¦^¶ÇªA°È®É¶¡¡AMaster ±Æ DEPARTURE
-void Master::startService(int sid) {
-    Sensor* s = (*sensors)[sid];
-    double st = s->startService();             // ·| pop ¦î¦CÀY¨Ã§â serving=true
-    serverBusy = true;
-    // Â²¤Æ¡G§â £n ª½±µ¥[¦b§¹¦¨®É¶¡¡F­Y­n§óºë·Ç¡A¥i¥H¥ı±Æ¤@­Ó EV_SERVICE ¨Æ¥ó¡C
-    felPush(now + switchover + ((st > EPS) ? st : EPS), EV_DEPARTURE, sid);
-}
-
-//===== ²Î­p¡]­±¿nªk¡^¡G§â [prev, now] ³o¬qªº totalQueue ¿n¤À°_¨Ó =====
-void Master::accumulateQ() {
+// ========== çµ±è¨ˆï¼ˆé¢ç©æ³•ï¼‰==========
+// æŠŠ [prev, now] é€™æ®µæ™‚é–“ï¼Œå°æ¯å€‹ sidï¼š
+//   sumQ[i]    += dt * queue_len_i
+//   sumL[i]    += dt * (queue_len_i + (serving?1:0))
+//   busySum[i] += dt * (serving?1:0)
+void Master::accumulate() {
     double dt = now - prev;
     if (dt <= 0) { prev = now; return; }
 
-    int totalQ = 0;
-    if (sensors) {
-        for (int i = 0; i < (int)sensors->size(); ++i) {
-            // ¥Ø«eªº total queue = ¦U sensor ¦î¦Cªø«×Á`©M
-            totalQ += (int)(*sensors)[i]->q.size();
-        }
+    int N = (sensors ? (int)sensors->size() : 0);
+    for (int i = 0; i < N; ++i) {
+        Sensor* s = (*sensors)[i];
+        int qlen = (int)s->q.size();      // ä½ ç¾åœ¨æŠŠ q/serving åšæˆ publicï¼Œé€™æ¨£è®€æœ€å¿«
+        int sys  = qlen + (s->serving ? 1 : 0);
+        sumQ[i]    += dt * qlen;
+        sumL[i]    += dt * sys;
+        busySum[i] += dt * (s->serving ? 1 : 0);
     }
-    sumQ += dt * totalQ;
+
     prev = now;
+}
+
+// ========== ç”¢ç”Ÿå–®ä¸€ sid çš„å ±è¡¨ ==========
+AnsiString Master::reportOne(int sid) const {
+    AnsiString out;
+
+    if (!sensors || sid < 0 || sid >= (int)sensors->size()) {
+        return "Invalid sensor id.\n";
+    }
+
+    double T = now;
+    double Lq_hat   = (T > 0) ? (sumQ[sid]   / T) : 0.0;
+    double L_hat    = (T > 0) ? (sumL[sid]   / T) : 0.0;
+    double busy_hat = (T > 0) ? (busySum[sid]/ T) : 0.0;
+    double thr_hat  = (T > 0) ? ((double)served[sid]   / T) : 0.0;
+    double lam_hat  = (T > 0) ? ((double)arrivals[sid] / T) : 0.0;
+    double mu_hat   = (busySum[sid] > 0) ? ((double)served[sid] / busySum[sid]) : 0.0;
+
+    out += "Sensor " + IntToStr(sid+1) + "\n";
+    out += "T            = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
+    out += "served       = " + IntToStr(served[sid]) + "\n";
+    out += "arrivals     = " + IntToStr(arrivals[sid]) + "\n";
+    out += "Lq_hat       = " + FloatToStrF(Lq_hat,   ffFixed, 7, 4) + "\n";
+    out += "L_hat        = " + FloatToStrF(L_hat,    ffFixed, 7, 4) + "\n";
+    out += "busy_hat     = " + FloatToStrF(busy_hat, ffFixed, 7, 4) + "\n";
+    out += "throughput   = " + FloatToStrF(thr_hat,  ffFixed, 7, 4) + " (? â‰ˆ Î» if stable)\n";
+    out += "lambda_hat   = " + FloatToStrF(lam_hat,  ffFixed, 7, 4) + "\n";
+    out += "mu_hat       = " + FloatToStrF(mu_hat,   ffFixed, 7, 4) + "\n";
+
+    // å¦‚æœè©² sensor æ˜¯ Exp(Î»)/Exp(Î¼)ï¼Œçµ¦ç†è«–å€¼
+    const Sensor* s = (*sensors)[sid];
+    bool theory = (s->ITdistri == 1 && s->STdistri == 1); // 1 = EXPONENTIALï¼ˆç…§ä½ çš„å®šç¾©ï¼‰
+    if (theory) {
+        double lambda = s->ITpara1;
+        double mu     = s->STpara1;
+        if (mu > 0 && lambda < mu) {
+            double rho = lambda / mu;
+            double Lq  = (rho*rho) / (1.0 - rho);
+            double L   = rho / (1.0 - rho);
+            out += "â€” Theory (M/M/1) â€”\n";
+            out += "lambda      = " + FloatToStrF(lambda, ffFixed, 7, 4) + "\n";
+            out += "mu          = " + FloatToStrF(mu,     ffFixed, 7, 4) + "\n";
+            out += "rho         = " + FloatToStrF(rho,    ffFixed, 7, 4) + "\n";
+            out += "Lq(theory)  = " + FloatToStrF(Lq,     ffFixed, 7, 4) + "\n";
+            out += "L(theory)   = " + FloatToStrF(L,      ffFixed, 7, 4) + "\n";
+        } else {
+            out += "(No closed-form: unstable or mu<=0)\n";
+        }
+    } else {
+        out += "(No closed-form theory for non-exponential)\n";
+    }
+    return out;
+}
+
+AnsiString Master::reportAll() const
+{
+    AnsiString out;
+
+    int N = (sensors ? (int)sensors->size() : 0);
+    if (N == 0) return "No sensors.\n";
+
+    double T = now;
+    long long served_tot = 0, arrivals_tot = 0;
+    double sumQ_tot = 0.0, sumL_tot = 0.0, busy_tot = 0.0;
+
+    for (int i = 0; i < N; ++i) {
+        served_tot   += served[i];
+        arrivals_tot += arrivals[i];
+        sumQ_tot     += sumQ[i];
+        sumL_tot     += sumL[i];
+        busy_tot     += busySum[i];
+    }
+
+    double Lq_hat   = (T > 0) ? (sumQ_tot / T) : 0.0;           // å…¨ç³»çµ±å¹³å‡æ’éšŠäººæ•¸ (sum over sensors)
+    double L_hat    = (T > 0) ? (sumL_tot / T) : 0.0;           // å…¨ç³»çµ±å¹³å‡ç³»çµ±äººæ•¸
+    double thr_hat  = (T > 0) ? ((double)served_tot   / T) : 0.0; // ç¸½åå
+    double lam_hat  = (T > 0) ? ((double)arrivals_tot / T) : 0.0; // ç¸½åˆ°é”ç‡
+    double mu_hat   = (busy_tot > 0) ? ((double)served_tot / busy_tot) : 0.0; // å¹³å‡æœå‹™ç‡(ä»¥å¿™ç¢Œæ™‚é–“åŠ æ¬Š)
+    double busy_avg = (N > 0 && T > 0) ? (busy_tot / (N * T)) : 0.0; // æ¯å°serverå¹³å‡å¿™ç¢Œæ¯”ä¾‹
+
+    out += "=== Overall (sum/average across sensors) ===\n";
+    out += "T            = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
+    out += "served_tot   = " + IntToStr((int)served_tot) + "\n";
+    out += "arrivals_tot = " + IntToStr((int)arrivals_tot) + "\n";
+    out += "Lq_hat       = " + FloatToStrF(Lq_hat,   ffFixed, 7, 4) + "\n";
+    out += "L_hat        = " + FloatToStrF(L_hat,    ffFixed, 7, 4) + "\n";
+    out += "throughput   = " + FloatToStrF(thr_hat,  ffFixed, 7, 4) + "\n";
+    out += "lambda_hat   = " + FloatToStrF(lam_hat,  ffFixed, 7, 4) + "\n";
+    out += "mu_hat       = " + FloatToStrF(mu_hat,   ffFixed, 7, 4) + "  (served_tot / busy_tot)\n";
+    out += "busy_avg     = " + FloatToStrF(busy_avg, ffFixed, 7, 4) + "  (average server busy fraction)\n";
+
+    // å¯é¸ï¼šè‹¥æ‰€æœ‰ sensor éƒ½æ˜¯ Exp(Î»_i)/Exp(Î¼_i) ä¸”ç©©å®šï¼Œçµ¦ç†è«–ç¸½å’Œ Lq/L
+    bool theory_ok = true;
+    double Lq_th_sum = 0.0, L_th_sum = 0.0;
+    for (int i = 0; i < N; ++i) {
+        const Sensor* s = (*sensors)[i];
+        if (!(s->ITdistri == 1 && s->STdistri == 1)) { theory_ok = false; break; } // 1=EXPONENTIAL
+        double lambda = s->ITpara1, mu = s->STpara1;
+        if (!(mu > 0 && lambda < mu)) { theory_ok = false; break; }
+        double rho = lambda / mu;
+        Lq_th_sum += (rho*rho) / (1.0 - rho);
+        L_th_sum  +=  rho      / (1.0 - rho);
+    }
+    if (theory_ok) {
+        out += "--- Theory sum (independent M/M/1 per sensor) ---\n";
+        out += "Lq(theory,sum) = " + FloatToStrF(Lq_th_sum, ffFixed, 7, 4) + "\n";
+        out += "L(theory,sum)  = " + FloatToStrF(L_th_sum,  ffFixed, 7, 4) + "\n";
+    } else {
+        out += "(No closed-form theory: non-exponential or unstable at least one sensor)\n";
+    }
+
+    return out;
 }
 
