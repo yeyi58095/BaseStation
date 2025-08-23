@@ -2,8 +2,8 @@ object Form5: TForm5
   Left = 0
   Top = 0
   Caption = 's'
-  ClientHeight = 396
-  ClientWidth = 791
+  ClientHeight = 397
+  ClientWidth = 1161
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -61,6 +61,12 @@ object Form5: TForm5
     Width = 52
     Height = 13
     Caption = '0 for inifity'
+  end
+  object log: TLabel
+    Left = 792
+    Top = 46
+    Width = 11
+    Height = 13
   end
   object Button1: TButton
     Left = 0

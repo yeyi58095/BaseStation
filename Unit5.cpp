@@ -19,7 +19,7 @@ int sensorAmount;
 std::vector<Sensor*> sensors;
 sim::Master master;
 void PlotTraceOne(int);
-void PlotTraceAll(int);
+void PlotTraceAll();
 __fastcall TForm5::TForm5(TComponent* Owner)
 	: TForm(Owner)
 {
@@ -126,13 +126,15 @@ void __fastcall TForm5::selectVisitComboBoxChange(TObject *Sender)
 	int sid = this->selectVisitComboBox->ItemIndex;
 	if(sid == 0){
 		AnsiString msg = master.reportAll();
-		ShowMessage(msg);
+		this->log->Caption = msg;
+		 PlotTraceAll();
 		return ;
 	}
 	PlotTraceOne(sid-1);
 	AnsiString msg = IntToStr(master.maxChargingSlots) + "\n" + master.reportOne(sid - 1);
-	ShowMessage(msg);
-}
+	//ShowMessage(msg);
+	this->log->Caption = msg;
+	}
 //---------------------------------------------------------------------------
 
 void PlotTraceAll() {
