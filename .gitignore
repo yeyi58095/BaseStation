@@ -1,0 +1,42 @@
+# ---- Build outputs ----
+Win32/Debug/
+Win32/Release/
+Win64/Debug/
+Win64/Release/
+OSX32/
+OSX64/
+iOSDevice32/
+iOSDevice64/
+iOSSimulator/
+Android/
+Linux64/
+
+# ---- Compiler/linker intermediates ----
+*.obj
+*.tds
+*.pch
+*.il?
+*.map
+*.drc
+*.dcpil
+*.dcp
+*.o
+*.a
+*.so
+*.dll
+*.exe
+*.lib   # 若你有手寫/第三方 .lib 要版本控，改為只忽略 Win32*/**/*.lib
+
+# ---- IDE generated ----
+*.identcache
+*.local         # e.g. Project2.cbproj.local
+*.stat          # e.g. Project2.stat
+__history/
+__recovery/
+
+# ---- Auto-generated resources ----
+*.res           # e.g. Project2.res（IDE 會重生）
+
+# ---- OS/Tooling junk ----
+.DS_Store
+Thumbs.db
