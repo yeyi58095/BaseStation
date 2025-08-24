@@ -78,6 +78,23 @@ void Master::reset() {
 	traceE_all.clear();
 	traceEavg_all.clear();
 
+	N = (sensors ? (int)sensors->size() : 0);
+	for (int i = 0; i < N; ++i) {
+		Sensor* s = (*sensors)[i];
+		s->resetDynamic();      // <<--- 關鍵：每次 Run 前把感測器的「動態狀態」清零
+		charging[i]  = false;
+		pendCharge[i] = 0;
+	}
+	hapTxBusy   = false; hapTxSid = -1;
+	chargeActive = 0;
+	felClear();
+	now = prev = 0.0;
+	busySumTx = 0.0;
+	chargeCountInt = 0.0;
+
+// trace 容器你原本也有清；保留即可
+
+
 }
 
 void Master::run() {

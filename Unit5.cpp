@@ -20,10 +20,11 @@ std::vector<Sensor*> sensors;
 sim::Master master;
 void PlotTraceOne(int);
 void PlotTraceAll(bool);
-bool runned = false;
+
 __fastcall TForm5::TForm5(TComponent* Owner)
 	: TForm(Owner)
 {
+	this->runned = false;
 	this->Dubug->Caption = "Run";
 	sensorAmount = 1;
 	Form5->selectSensorComboBox->ItemIndex = 0;
@@ -152,9 +153,7 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 
 	this->Dubug->Caption = "Run";
 	rv::reseed(12345);
-	if(runned){
-		return ;
-	}
+
 
 	master.run();
 
@@ -164,6 +163,8 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	PlotTraceAll(true);
 	AnsiString msg = FloatToStr(master.switchover)+ " \n" + master.reportOne(0);
 	SaveMsgToFile(msg, "report.txt");
+
+	this->DebugLabel->Caption = "" ;
 }
 //---------------------------------------------------------------------------
 
@@ -214,6 +215,12 @@ void PlotTraceAll(bool epAverage = true) {
 		Form5->SeriesMean   ->AddXY(t[k], m[k], "", clBlue);
 		Form5->SeriesEP     ->AddXY(t[k], e[k], "", clGreen);
 	}
+	Form5->SeriesEP->Active = false;
+	Form5->ckbEP->Checked = false;
+
+	Form5->SeriesThreshold->Active = false;
+	Form5->ckbRtx->Checked = false;
+
 }
 
 
@@ -290,12 +297,28 @@ void __fastcall TForm5::ckbMeanClick(TObject *Sender)
 void __fastcall TForm5::ckbRtxClick(TObject *Sender)
 {
 	this->SeriesThreshold->Active = this->ckbRtx->Checked;
+	if(Form5->selectVisitComboBox->ItemIndex == 0){
+	Form5->SeriesEP->Active = false;
+	Form5->ckbEP->Checked = false;
+
+	Form5->SeriesThreshold->Active = false;
+	Form5->ckbRtx->Checked = false;}
 }
 //---------------------------------------------------------------------------
 
 void __fastcall TForm5::ckbEPClick(TObject *Sender)
 {
 	this->SeriesEP->Active = this->ckbEP->Checked;
+	if(Form5->selectVisitComboBox->ItemIndex == 0){
+	Form5->SeriesEP->Active = false;
+	Form5->ckbEP->Checked = false;
+
+	Form5->SeriesThreshold->Active = false;
+	Form5->ckbRtx->Checked = false;}
 }
 //---------------------------------------------------------------------------
+
+
+
+
 

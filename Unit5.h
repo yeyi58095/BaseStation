@@ -64,6 +64,7 @@ private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);
 	std::vector<Sensor*> sensors;
+	bool runned;
 };
 //---------------------------------------------------------------------------
 extern PACKAGE TForm5 *Form5;

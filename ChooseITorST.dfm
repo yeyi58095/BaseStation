@@ -147,14 +147,14 @@ object Chooser: TChooser
     Text = '1'
     OnChange = rTxEditChange
   end
-  object Edit1: TEdit
+  object chargingRateEdit: TEdit
     Left = 623
     Top = 100
     Width = 72
     Height = 21
     TabOrder = 7
     Text = '1'
-    OnChange = Edit1Change
+    OnChange = chargingRateEditChange
   end
   object Button3: TButton
     Left = 728

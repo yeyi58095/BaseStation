@@ -23,49 +23,56 @@ void __fastcall TChooser::OnShow(TObject *Sender)
 {
 	 s = Form5->sensors[Form5->selectSensorComboBox->ItemIndex] ;
 	Chooser->Label1->Caption = "Sensor : " + IntToStr(Form5->selectSensorComboBox->ItemIndex);
+	this->qmaxEdit->Text = s->Qmax;
+	this->ECapEdit->Text = s->E_cap;
+	this->EnergyEdit->Text = s->energy;
+	this->rTxEdit->Text = s->r_tx;
+	this->chargingRateEdit->Text = s->charge_rate;
 }
 //---------------------------------------------------------------------------
 
 void __fastcall TChooser::Button1Click(TObject *Sender)
 {
 	state = 1;
-	methodChooser->Show();
+	methodChooser->Show();   Form5->runned = false;
 
 }
 //---------------------------------------------------------------------------
 void __fastcall TChooser::Button2Click(TObject *Sender)
 {
 	state = 2;
-	methodChooser->Show();
+	methodChooser->Show();  Form5->runned = false;
 }
 //---------------------------------------------------------------------------
 
 void __fastcall TChooser::qmaxEditChange(TObject *Sender)
 {
 	int qmax = StrToIntDef(this->qmaxEdit->Text, -1);
-	s->setQmax(qmax);
+	s->setQmax(qmax);         Form5->runned = false;
 }
 //---------------------------------------------------------------------------
 
 
-void __fastcall TChooser::preloadEditChange(TObject *Sender)
+	void __fastcall TChooser::preloadEditChange(TObject *Sender)
 {
-	int preload = StrToIntDef(this->preloadEdit->Text, 0);
-	s->preloadDP(preload);
+    int preload = StrToIntDef(this->preloadEdit->Text, 0);
+    s->setPreloadInit(preload);
+    Form5->runned = false;
 }
+
 //---------------------------------------------------------------------------
 
 void __fastcall TChooser::ECapEditChange(TObject *Sender)
 {
 	int e_cap = StrToIntDef(this->ECapEdit->Text, s->E_cap);
-	s->E_cap = e_cap;
+	s->E_cap = e_cap;   Form5->runned = false;
 }
 //---------------------------------------------------------------------------
 
 void __fastcall TChooser::EnergyEditChange(TObject *Sender)
 {
 	int eng = StrToIntDef(this->EnergyEdit->Text, s->energy);
-	s->energy = eng;
+	s->energy = eng;    Form5->runned = false;
 }
 //---------------------------------------------------------------------------
 
@@ -75,15 +82,16 @@ void __fastcall TChooser::EnergyEditChange(TObject *Sender)
 void __fastcall TChooser::rTxEditChange(TObject *Sender)
 {
 	int r = StrToIntDef(this->rTxEdit->Text, s->r_tx);
-	s->r_tx = r;
+	s->r_tx = r;      Form5->runned = false;
 }
 //---------------------------------------------------------------------------
 
 
-void __fastcall TChooser::Edit1Change(TObject *Sender)
+void __fastcall TChooser::chargingRateEditChange(TObject *Sender)
 {
-	int rate = StrToIntDef(this->Edit1->Text, s->charge_rate);
+	int rate = StrToIntDef(this->chargingRateEdit->Text, s->charge_rate);
 	s->charge_rate = rate;
+	Form5->runned = false;
 }
 //---------------------------------------------------------------------------
 
@@ -93,4 +101,5 @@ void __fastcall TChooser::Button3Click(TObject *Sender)
 	Close();
 }
 //---------------------------------------------------------------------------
+
 
