@@ -63,10 +63,10 @@ object Form5: TForm5
     Caption = '0 for inifity'
   end
   object log: TLabel
-    Left = 792
+    Left = 779
     Top = 46
-    Width = 3
-    Height = 13
+    Width = 53
+    Height = 37
   end
   object sensorAmountEdit: TEdit
     Left = 120
@@ -194,5 +194,41 @@ object Form5: TForm5
     TabOrder = 9
     Text = '0'
     OnChange = maxCharginSlotEditChange
+  end
+  object chkQ: TCheckBox
+    Left = 709
+    Top = 98
+    Width = 60
+    Height = 14
+    Caption = 'chkQ'
+    TabOrder = 10
+    OnClick = chkQClick
+  end
+  object ckbMean: TCheckBox
+    Left = 709
+    Top = 118
+    Width = 60
+    Height = 19
+    Caption = 'ckbMean'
+    TabOrder = 11
+    OnClick = ckbMeanClick
+  end
+  object ckbRtx: TCheckBox
+    Left = 709
+    Top = 143
+    Width = 60
+    Height = 17
+    Caption = 'ckbRtx'
+    TabOrder = 12
+    OnClick = ckbRtxClick
+  end
+  object ckbEP: TCheckBox
+    Left = 709
+    Top = 166
+    Width = 60
+    Height = 17
+    Caption = 'ckbEP'
+    TabOrder = 13
+    OnClick = ckbEPClick
   end
 end

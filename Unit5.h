@@ -43,6 +43,10 @@ __published:	// IDE-managed Components
 	TLabel *log;
 	TFastLineSeries *SeriesThreshold;
 	TFastLineSeries *SeriesEP;
+	TCheckBox *chkQ;
+	TCheckBox *ckbMean;
+	TCheckBox *ckbRtx;
+	TCheckBox *ckbEP;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);
@@ -52,6 +56,10 @@ __published:	// IDE-managed Components
 	void __fastcall endTimeEditChange(TObject *Sender);
 	void __fastcall switchOverEditChange(TObject *Sender);
 	void __fastcall maxCharginSlotEditChange(TObject *Sender);
+	void __fastcall chkQClick(TObject *Sender);
+	void __fastcall ckbMeanClick(TObject *Sender);
+	void __fastcall ckbRtxClick(TObject *Sender);
+	void __fastcall ckbEPClick(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);

@@ -254,9 +254,11 @@ void Master::scheduleIfIdle() {
         if (s->charge_rate <= 0) continue;       // cannot charge
         if (charging[i]) continue;               // already charging
 
-        int need = s->r_tx - s->energy;          // integer deficit
-        if (need < 1) need = 1;
-        double tchg = (need / (s->charge_rate > 0 ? s->charge_rate : 1e-9));
+		int target = s->E_cap;
+		int need = target - s->energy;          // integer deficit
+		if (need < 1) need = 1;
+
+		double tchg = need / std::max(s->charge_rate, 1e-9);
         if (tchg <= EPS) tchg = EPS;
 
         charging[i] = true;
