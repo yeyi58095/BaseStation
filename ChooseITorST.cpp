@@ -28,6 +28,8 @@ void __fastcall TChooser::OnShow(TObject *Sender)
 	this->EnergyEdit->Text = s->energy;
 	this->rTxEdit->Text = s->r_tx;
 	this->chargingRateEdit->Text = s->charge_rate;
+	this->costBaseEdit->Text = s->txCostBase;
+	this->costPerSecEdit->Text = s->txCostPerSec;
 }
 //---------------------------------------------------------------------------
 
@@ -102,4 +104,18 @@ void __fastcall TChooser::Button3Click(TObject *Sender)
 }
 //---------------------------------------------------------------------------
 
+
+void __fastcall TChooser::costBaseEditChange(TObject *Sender)
+{
+	int cb = StrToIntDef(this->costBaseEdit->Text, s->txCostBase);
+	s->txCostBase = cb;
+}
+//---------------------------------------------------------------------------
+
+void __fastcall TChooser::costPerSecEditChange(TObject *Sender)
+{
+	int cps = StrToIntDef(this->costPerSecEdit->Text, s->txCostPerSec);
+	s->txCostPerSec = cps;
+}
+//---------------------------------------------------------------------------
 

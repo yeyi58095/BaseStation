@@ -115,7 +115,7 @@ object Form5: TForm5
   end
   object Chart1: TChart
     Left = 303
-    Top = 96
+    Top = 97
     Width = 400
     Height = 250
     Title.Text.Strings = (

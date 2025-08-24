@@ -84,6 +84,20 @@ object Chooser: TChooser
     Height = 13
     Caption = 'charge_rate'
   end
+  object Label6: TLabel
+    Left = 295
+    Top = 76
+    Width = 45
+    Height = 12
+    Caption = 'CostBase'
+  end
+  object CostPerSec: TLabel
+    Left = 285
+    Top = 100
+    Width = 55
+    Height = 13
+    Caption = 'CostPerSec'
+  end
   object Button1: TButton
     Left = 48
     Top = 35
@@ -164,5 +178,31 @@ object Chooser: TChooser
     Caption = 'ok'
     TabOrder = 8
     OnClick = Button3Click
+  end
+  object costBaseEdit: TEdit
+    Left = 346
+    Top = 73
+    Width = 121
+    Height = 21
+    TabOrder = 9
+    Text = 'costBaseEdit'
+    OnChange = costBaseEditChange
+  end
+  object CheckBox1: TCheckBox
+    Left = 312
+    Top = 104
+    Width = 25
+    Height = 1
+    Caption = 'CheckBox1'
+    TabOrder = 10
+  end
+  object costPerSecEdit: TEdit
+    Left = 346
+    Top = 98
+    Width = 121
+    Height = 21
+    TabOrder = 11
+    Text = 'costPerSecEdit'
+    OnChange = costPerSecEditChange
   end
 end
