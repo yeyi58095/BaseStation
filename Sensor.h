@@ -2,88 +2,87 @@
 #include <deque>
 #include <System.hpp>  // AnsiString
 
-// distributions: keep same ids as your project
+// distributions
 enum { DIST_NORMAL = 0, DIST_EXPONENTIAL = 1, DIST_UNIFORM = 2 };
 
 class Sensor {
 public:
-    // identity
     int id;
 
-    // data queue (DP queue)
-    std::deque<int> q;
-	bool  serving;       // true when this sensor is being served by HAP
-	int servingId;
+    // ====== queue: store full packet info ======
+    struct Packet {
+        int    id;       // packet id
+        double st;       // service time (sec)
+        int    needEP;   // energy cost in EP units
+    };
+    std::deque<Packet> q;
 
-	//
-	int pktSeq;
-	int init_preload;
+    bool  serving;       // being served by HAP?
+    int   servingId;
+
+    int pktSeq;
+    int init_preload;
 
     // arrival/service distributions
     int    ITdistri, STdistri;
-    double ITpara1, ITpara2;   // for arrival
-    double STpara1, STpara2;   // for service
+    double ITpara1, ITpara2;   // arrival
+    double STpara1, STpara2;   // service
 
     // energy model (integer EP)
     int    energy;       // current EP units
-    int    E_cap;        // battery capacity (max EP)
-    int    r_tx;         // EP units required per DP
-	double charge_rate;  // EP units per second when HAP is charging this sensor
+    int    E_cap;        // battery capacity
+    int    r_tx;         // gate threshold to allow TX
+    double charge_rate;  // EP / second when charging
+
+    // ====== NEW: energy cost model ======
+    // needEP = ceil(txCostBase + txCostPerSec * st)
+    double txCostBase;     // default = r_tx (downward-compatible)
+    double txCostPerSec;   // default = 0
 
 public:
     explicit Sensor(int id);
 
-    // config (UI)
+    // config
     void setIT(int method, double p1, double p2 = 0.0);
     void setST(int method, double p1, double p2 = 0.0);
     void setArrivalExp(double lambda) { setIT(DIST_EXPONENTIAL, lambda); }
     void setServiceExp(double mu)     { setST(DIST_EXPONENTIAL, mu); }
 
-	// samples
+    // samples
     double sampleIT() const;
     double sampleST() const;
 
     // queue ops
     void   enqueueArrival();
-    bool   canTransmit() const;        // have DP and enough EP and not serving
-    double startTx();                  // pop 1 DP, consume EP, set serving, return service time
-    void   finishTx();                 // clear serving flag
+    bool   canTransmit() const;        // q>0, energy>=max(r_tx, needEP(front)), !serving
+    double startTx();                  // pop one, consume needEP, set serving, return st
+    void   finishTx();
 
     // energy helpers
-    void   addEnergy(int units);       // increase EP by integer units, clamp to cap
+    void   addEnergy(int units);
 
     // info
-	AnsiString toString() const;
+    AnsiString toString() const;
+    AnsiString queueToStr() const;
 
-public:
-	// 在 public 加上（預設值可放建構子）
-	int Qmax;    // -1 = 無限
-	int drops;   // tail-drop 次數
+    // queue limits
+    int  Qmax;   // -1 = unlimited
+    int  drops;  // tail-drops
+    void setQmax(int m) { Qmax = m; }
+    void preloadDP(int n) { while (n-- > 0) enqueueArrival(); }
 
-	void setQmax(int m) { Qmax = m; }
-	void preloadDP(int n) { while (n-- > 0) enqueueArrival(); } // 初始塞封包
+    // runtime helpers
+    void resetDynamic();
+    void setPreloadInit(int n) { init_preload = (n < 0 ? 0 : n); }
+    int  lastEnqId() const { return q.empty() ? -1 : q.back().id; }
+    int  currentServingId() const { return serving ? servingId : -1; }
 
-public: // for runned
-// 新增：記住「初始預載封包數」(用 UI 設)
+    // front peek
+    int    frontId()     const { return q.empty() ? -1  : q.front().id; }
+    double frontST()     const { return q.empty() ? 0.0 : q.front().st; }
+    int    frontNeedEP() const { return q.empty() ? 0   : q.front().needEP; }
 
-
-// 新增：只清動態狀態（每次 Run 前呼叫）
-void resetDynamic() {
-    q.clear();
-	drops   = 0;
-	serving = false;
-	    servingId = -1;                 // <<< 補
-	pktSeq = 0;                     // <<< 補
-    // 保留 UI 設的 energy，但做夾限
-    if (energy < 0)      energy = 0;
-    if (energy > E_cap)  energy = E_cap;
-    // 依 init_preload 塞入初始封包
-	for (int i = 0; i < init_preload; ++i) enqueueArrival();
-}
-
-//（可選）把舊的 preload 改成 setter，不要直接 push 到當前佇列
-void setPreloadInit(int n) { init_preload = (n < 0 ? 0 : n); }
-int lastEnqId() const { return q.empty() ? -1 : q.back(); }
-	int currentServingId() const { return serving ? servingId : -1; }
+    // energy cost for a given st
+    int energyForSt(double st) const;
 };
 

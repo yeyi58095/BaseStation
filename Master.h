@@ -10,7 +10,7 @@ namespace sim {
 enum EventType {
     EV_DP_ARRIVAL = 0,   // data packet arrival
     EV_TX_DONE    = 1,   // HAP finished a transmission
-    EV_CHARGE_END = 2,   // charging finished (enough EP to tx one DP)
+    EV_CHARGE_END = 2,   // charging finished for this segment
     EV_HAP_POLL   = 3    // trigger scheduler
 };
 
@@ -25,10 +25,8 @@ struct EvNode {
 
 class Master {
 public:
-    // external sensors (not owned)
     std::vector<Sensor*>* sensors;
 
-    // FEL (dummy head)
     EvNode*  felHead;
 
     // time/settings
@@ -37,46 +35,42 @@ public:
     double   prev;
     static double EPS;
 
-    // HAP TX pipeline (one-at-a-time)
-    bool   hapTxBusy;      // TX busy flag
-    int    hapTxSid;       // which sid is being transmitted
-    double switchover;     // TX switchover overhead (seconds)
+    // HAP TX pipeline (one at a time)
+    bool   hapTxBusy;
+    int    hapTxSid;
+    double switchover;
 
-    // Charging pipeline (FDM, can be many in parallel)
-    int    maxChargingSlots; // 0 = unlimited
-    int    chargeActive;     // how many are currently charging
-    std::vector<bool> charging;     // per-sid "is charging?"
-    std::vector<int>  pendCharge;   // pending EP units to add on CHARGE_END
+    // Charging pipeline (FDM)
+    int    maxChargingSlots;   // 0 = unlimited
+    int    chargeActive;       // how many charging now
+    std::vector<bool> charging;
+    std::vector<int>  pendCharge;   // planned added EP for current segment
 
+    std::vector<double> chargeStartT;
+    std::vector<double> chargeEndT;
 
-	std::vector<double> chargeStartT;  // charging start time
-	std::vector<double> chargeEndT;    // charging end time (for reference)
-    // priority weights
-    double dpCoef; // weight for queue length
-    double epCoef; // weight for energy
+    // scheduling weights
+    double dpCoef;
+    double epCoef;
 
-    // statistics per sensor
-    std::vector<double> sumQ;     // integral of queue length
-    std::vector<int>    served;   // TX completions
-    std::vector<int>    arrivals; // DP arrivals
+    // stats per sensor
+    std::vector<double> sumQ;
+    std::vector<int>    served;
+    std::vector<int>    arrivals;
 
     // HAP stats
-    double busySumTx;       // integral of TX busy (0/1)
-	double chargeCountInt;  // integral of "how many charging in parallel"
+    double busySumTx;
+    double chargeCountInt;
 
-    // traces for plots
+    // traces
     bool recordTrace;
-    std::vector< std::vector<double> > traceT, traceQ, traceMeanQ; // per sensor
-	std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;    // overall
+    std::vector< std::vector<double> > traceT, traceQ, traceMeanQ;
+    std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;
 
-	// 每個 sensor 的 EP 時間序列
-	std::vector< std::vector<double> > traceE;     // energy(t) 以 double 存
-	std::vector< std::vector<double> > traceRtx;   // r_tx 門檻（畫水平線用；每點重覆同值）
-
-	// 全體聚合
-	std::vector<double> traceE_all;      // 全體 EP 總和
-	std::vector<double> traceEavg_all;   // 全體 EP 平均
-
+    std::vector< std::vector<double> > traceE;    // EP(t) with charging slope
+    std::vector< std::vector<double> > traceRtx;  // r_tx for plotting
+    std::vector<double> traceE_all;               // sum EP
+    std::vector<double> traceEavg_all;            // avg EP
 
 public:
     Master();
@@ -98,29 +92,30 @@ public:
     // stats
     void accumulate();
 
-    // scheduler (FDM): TX and CHARGE are decided independently
+    // scheduler
     void scheduleIfIdle();
 
     // reports
     AnsiString reportOne(int sid) const;
-	AnsiString reportAll() const;
+    AnsiString reportAll() const;
 
-public: // for logger
-	// --- logging（public 讓 UI 可取） ---
-	int keepLogIds;                         // 每個 list 最多保留幾個 id
-	std::vector<AnsiString> timeline;             // 事件逐行
-	std::vector< std::vector<int> > arrivedIds;     // 每 sensor 的到達 id
-	std::vector< std::vector<int> > servedIds;      // 每 sensor 的離開 id
+public: // logger
+    int keepLogIds;
+    std::vector<AnsiString> timeline;
+    std::vector< std::vector<int> > arrivedIds;
+    std::vector< std::vector<int> > servedIds;
 
-	void logArrival(double t,int sid,int pid,int q,int ep);
-	void logStartTx(double t,int sid,int pid,double st,int epBefore);
-	void logEndTx(double t,int sid,int pid,int q,int epNow);
-	void logChargeStart(double t,int sid,int need,int active,int cap);
-	void logChargeEnd(double t,int sid,int add,int epNow);
+    void logArrival(double t,int sid,int pid,int q,int ep);
+    void logStartTx(double t,int sid,int pid,double st,int epBefore,int epCost);
+    void logEndTx(double t,int sid,int pid,int q,int epNow);
+    void logChargeStart(double t,int sid,int need,int active,int cap);
+    void logChargeEnd(double t,int sid,int add,int epNow);
 
-	// 把 timeline + summary 串成一段文字
-	AnsiString dumpLogWithSummary() const;
+    AnsiString dumpLogWithSummary() const;
 
+    bool logStateEachEvent;
+    AnsiString stateLine() const;
+    void logSnapshot(double t, const char* tag);
 };
 
 } // namespace sim

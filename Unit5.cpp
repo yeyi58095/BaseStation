@@ -80,6 +80,9 @@ void __fastcall TForm5::sensorAmountEditChange(TObject *Sender)
 	if(Form5->sensorAmountEdit->Text != ""){
 		sensorAmount = StrToInt(Form5->sensorAmountEdit->Text);
 	}
+	if(sensorAmount >= 4){
+		master.logStateEachEvent = false;
+	}
 }
 //---------------------------------------------------------------------------
 
@@ -163,6 +166,13 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	PlotTraceAll(true);
 	AnsiString msg = FloatToStr(master.switchover)+ " \n" + master.reportOne(0);
 	SaveMsgToFile(msg, "report.txt");
+
+	// Unit5.cpp ¡÷ TForm5::DubugClick() ¤º¡Brun() ¤§«e
+	if(sensorAmount >= 4){
+		master.logStateEachEvent = false;
+	}else{
+		master.logStateEachEvent = true;
+    }
 
 	AnsiString text = master.dumpLogWithSummary();
 	SaveMsgToFile(text, "run_log.txt");
@@ -320,6 +330,8 @@ void __fastcall TForm5::ckbEPClick(TObject *Sender)
 	Form5->ckbRtx->Checked = false;}
 }
 //---------------------------------------------------------------------------
+
+
 
 
 

@@ -2,12 +2,11 @@
 #include "Sensor.h"
 
 #include <algorithm>
-#include <System.SysUtils.hpp>   // FloatToStrF, IntToStr
-#include <System.Classes.hpp>    // TStringList
+#include <System.SysUtils.hpp>
+#include <System.Classes.hpp>
 
 using namespace sim;
 
-// 小工具：格式化浮點
 static AnsiString f2(double x, int prec=3) {
     return FloatToStrF(x, ffFixed, 7, prec);
 }
@@ -22,9 +21,10 @@ Master::Master()
   dpCoef(1.0), epCoef(1.0),
   busySumTx(0.0), chargeCountInt(0.0),
   recordTrace(true),
-  keepLogIds(200)
+  keepLogIds(200),
+  logStateEachEvent(true)  // default ON
 {
-    felHead = new EvNode(0.0, EV_DP_ARRIVAL, -1); // dummy
+    felHead = new EvNode(0.0, EV_DP_ARRIVAL, -1);
     felHead->next = 0;
 }
 
@@ -42,16 +42,14 @@ void Master::setSensors(std::vector<Sensor*>* v) {
     arrivals.assign(N, 0);
 
     charging.assign(N, false);
-	pendCharge.assign(N, 0);
-
-	chargeStartT.assign(N, 0.0);    //  新增
-	chargeEndT.assign(N, 0.0);      //  新增
+    pendCharge.assign(N, 0);
+    chargeStartT.assign(N, 0.0);
+    chargeEndT.assign(N, 0.0);
 
     busySumTx = 0.0;
     chargeActive = 0;
     chargeCountInt = 0.0;
 
-    // traces
     traceT.assign(N, std::vector<double>());
     traceQ.assign(N, std::vector<double>());
     traceMeanQ.assign(N, std::vector<double>());
@@ -62,9 +60,8 @@ void Master::setSensors(std::vector<Sensor*>* v) {
     traceE_all.clear();
     traceEavg_all.clear();
 
-    // logging
     arrivedIds.assign(N, std::vector<int>());
-    servedIds.assign(N,  std::vector<int>());
+    servedIds.assign(N, std::vector<int>());
     timeline.clear();
 }
 
@@ -80,10 +77,9 @@ void Master::reset() {
     const int N = (sensors ? (int)sensors->size() : 0);
     for (int i=0;i<N;++i) {
         sumQ[i] = 0.0; served[i] = 0; arrivals[i] = 0;
-		charging[i] = false; pendCharge[i] = 0;
+        charging[i] = false; pendCharge[i] = 0;
+        chargeStartT[i] = 0.0; chargeEndT[i] = 0.0;
 
-		chargeStartT[i] = 0.0;              // 新增
-		chargeEndT[i]   = 0.0;
         if (recordTrace) {
             traceT[i].clear();
             traceQ[i].clear();
@@ -94,12 +90,11 @@ void Master::reset() {
     }
 
     traceT_all.clear(); traceQ_all.clear(); traceMeanQ_all.clear();
-	traceE_all.clear(); traceEavg_all.clear();
+    traceE_all.clear(); traceEavg_all.clear();
 
-    // 清感測器的動態狀態（保留 UI 設定）
     for (int i=0;i<N;++i) {
         Sensor* s = (*sensors)[i];
-        s->resetDynamic();
+		s->resetDynamic();
         charging[i]  = false;
         pendCharge[i] = 0;
     }
@@ -110,7 +105,6 @@ void Master::reset() {
     busySumTx = 0.0;
     chargeCountInt = 0.0;
 
-    // logger
     for (int i=0;i<N;++i) {
         arrivedIds[i].clear();
         servedIds[i].clear();
@@ -121,14 +115,13 @@ void Master::reset() {
 void Master::run() {
     if (!sensors || sensors->empty()) return;
 
-    reset();
+	reset();
 
-    // initial DP arrivals
+    // initial arrivals
     for (int i=0; i<(int)sensors->size(); ++i) {
         double dt = (*sensors)[i]->sampleIT(); if (dt <= EPS) dt = EPS;
         felPush(now + dt, EV_DP_ARRIVAL, i);
     }
-    // initial poll
     felPush(now + EPS, EV_HAP_POLL, -1);
 
     double t; EventType tp; int sid;
@@ -142,27 +135,24 @@ void Master::run() {
             Sensor* s = (*sensors)[sid];
             s->enqueueArrival();
 
-            // logger: arrival
-			int pid = s->lastEnqId();
-			if (pid >= 0) {
+            int pid = s->lastEnqId();
+            if (pid >= 0) {
                 arrivedIds[sid].push_back(pid);
                 if ((int)arrivedIds[sid].size() > keepLogIds) arrivedIds[sid].erase(arrivedIds[sid].begin());
                 logArrival(now, sid, pid, (int)s->q.size(), s->energy);
             }
-
             arrivals[sid] += 1;
 
             // next arrival
             { double dt = s->sampleIT(); if (dt <= EPS) dt = EPS;
               felPush(now + dt, EV_DP_ARRIVAL, sid); }
 
-            // try schedule
             felPush(now + EPS, EV_HAP_POLL, -1);
+            logSnapshot(now, "after ARRIVAL");
             break;
         }
 
         case EV_TX_DONE: {
-            // 先抓 id 再 finish，避免 finishTx() 把狀態清掉
             Sensor* s = (*sensors)[sid];
             int pid = s->currentServingId();
             logEndTx(now, sid, pid, (int)s->q.size(), s->energy);
@@ -170,35 +160,32 @@ void Master::run() {
             s->finishTx();
             served[sid] += 1;
 
-            // 記錄離開 id
             servedIds[sid].push_back(pid);
             if ((int)servedIds[sid].size() > keepLogIds) servedIds[sid].erase(servedIds[sid].begin());
 
             hapTxBusy = false; hapTxSid = -1;
 
-            // after TX, try next TX/CHARGE
             felPush(now + EPS, EV_HAP_POLL, -1);
+            logSnapshot(now, "after END_TX");
             break;
         }
 
-		case EV_CHARGE_END: {
-			if (sid >= 0 && sid < (int)pendCharge.size()) {
-				Sensor* s = (*sensors)[sid];
+        case EV_CHARGE_END: {
+            if (sid >= 0 && sid < (int)pendCharge.size()) {
+                Sensor* s = (*sensors)[sid];
+                logChargeEnd(now, sid, pendCharge[sid], s->energy + pendCharge[sid]);
 
-				// logger：先用加完後的值給 log
-				logChargeEnd(now, sid, pendCharge[sid], s->energy + pendCharge[sid]);
+                s->addEnergy(pendCharge[sid]); // add the planned EP
+                pendCharge[sid] = 0;
 
-				s->addEnergy(pendCharge[sid]); // 實際加 EP（整數）
-				pendCharge[sid] = 0;
-
-				if (charging[sid]) { charging[sid] = false; chargeActive--; }
-
-				chargeStartT[sid] = 0.0;       // ★ 清掉區段
-				chargeEndT[sid]   = 0.0;
-			}
-			felPush(now + EPS, EV_HAP_POLL, -1);
-			break;
-		}
+                if (charging[sid]) { charging[sid] = false; chargeActive--; }
+                chargeStartT[sid] = 0.0;
+                chargeEndT[sid]   = 0.0;
+            }
+            felPush(now + EPS, EV_HAP_POLL, -1);
+            logSnapshot(now, "after CHARGE_END");
+            break;
+        }
 
         case EV_HAP_POLL: {
             scheduleIfIdle();
@@ -253,20 +240,19 @@ void Master::accumulate() {
             double meanQ = (now > 0) ? (sumQ[i] / now) : 0.0;
             traceMeanQ[i].push_back(meanQ);
 
-			// 每 sensor 的 EP 與門檻
-			double epVis = (double)s->energy;
+            // EP with charging slope
+            double epVis = (double)s->energy;
             if (charging[i]) {
                 double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
                 if (prog < 0) prog = 0;
                 if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
                 epVis += prog;
             }
-			traceE[i].push_back(epVis);
-			traceRtx[i].push_back( (double)s->r_tx );
-		}
+            traceE[i].push_back(epVis);
+            traceRtx[i].push_back( (double)s->r_tx );
+        }
     }
 
-    // HAP 忙碌度（TX）與平行充電數
     busySumTx      += dt * (hapTxBusy ? 1 : 0);
     chargeCountInt += dt * (double)chargeActive;
 
@@ -278,20 +264,20 @@ void Master::accumulate() {
         for (int i=0;i<N;++i) sumQtot += sumQ[i];
         traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
 
-		double EsumVis = 0.0;
+        double EsumVis = 0.0;
         for (int i=0;i<N;++i) {
             Sensor* s = (*sensors)[i];
             double epVis = (double)s->energy;
             if (charging[i]) {
-				double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
+                double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
                 if (prog < 0) prog = 0;
                 if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
                 epVis += prog;
-			}
+            }
             EsumVis += epVis;
         }
-		traceE_all.push_back(EsumVis);
-		traceEavg_all.push_back( (N>0)? (EsumVis  / N) : 0.0 );
+        traceE_all.push_back(EsumVis);
+        traceEavg_all.push_back( (N>0)? (EsumVis  / N) : 0.0 );
     }
 
     prev = now;
@@ -299,31 +285,38 @@ void Master::accumulate() {
 
 void Master::scheduleIfIdle() {
     if (!sensors || sensors->empty()) return;
-
     const int N = (int)sensors->size();
 
-    // (A) TX pipeline: pick if idle
+    // (A) TX: if idle, pick one
     if (!hapTxBusy) {
         int pickTX = -1; double bestScore = -1.0;
         for (int i=0;i<N; ++i) {
             Sensor* s = (*sensors)[i];
-            if (!s->canTransmit()) continue; // need q>0, energy>=r_tx, !serving
+            if (!s->canTransmit()) continue;
             double score = dpCoef * (double)s->q.size()
                          * epCoef * (double)s->energy;
             if (score > bestScore) { bestScore = score; pickTX = i; }
         }
         if (pickTX >= 0) {
             Sensor* s = (*sensors)[pickTX];
-            double st = s->startTx(); if (st <= EPS) st = EPS;
-            int pid = s->currentServingId();
+
+            // peek before startTx() mutates the state
+            int    pid      = s->frontId();
+            double st_need  = s->frontST(); if (st_need <= EPS) st_need = EPS;
+            int    epCost   = s->frontNeedEP();
+            int    epBefore = s->energy;
+
+            double st = s->startTx(); if (st <= EPS) st = st_need;
             hapTxBusy = true; hapTxSid = pickTX;
-            logStartTx(now, pickTX, pid, st, s->energy + s->r_tx);
-            felPush(now + switchover + st, EV_TX_DONE, pickTX);
+
+            logStartTx(now, pickTX, pid, st_need, epBefore, epCost);
+            logSnapshot(now, "after START_TX");
+
+            felPush(now + switchover + st_need, EV_TX_DONE, pickTX);
         }
     }
 
-    // (B) Charging pipeline (FDM):
-    //     只要 sensor 有在運作（q>0 或 serving），且電池未滿，就持續充電
+    // (B) Charging (FDM): keep charging while operating and not full
     int freeSlots = (maxChargingSlots <= 0)
                   ? 0x3fffffff
                   : (maxChargingSlots - chargeActive);
@@ -331,12 +324,12 @@ void Master::scheduleIfIdle() {
     for (int i=0; i<N && freeSlots > 0; ++i) {
         Sensor* s = (*sensors)[i];
 
-        if (s->charge_rate <= 0) continue;         // 不能充
-        if (charging[i])       continue;           // 已在充
-        if ((int)s->q.size() <= 0 && !s->serving) continue; // 沒在運作就先不充
-        if (s->energy >= s->E_cap) continue;       // 已滿
+        if (s->charge_rate <= 0) continue;         // can't charge
+        if (charging[i])       continue;           // already charging
+        if ((int)s->q.size() <= 0 && !s->serving) continue; // not operating
+        if (s->energy >= s->E_cap) continue;       // already full
 
-        int need = s->E_cap - s->energy;           // 本輪補到滿
+        int need = s->E_cap - s->energy;           // top-up to full
         if (need < 1) need = 1;
 
         double tchg = need / std::max(s->charge_rate, 1e-9);
@@ -346,12 +339,12 @@ void Master::scheduleIfIdle() {
         chargeActive++;
         pendCharge[i] = need;
 
-        // ★ 紀錄區段，畫斜坡會用到
         chargeStartT[i] = now;
         chargeEndT[i]   = now + tchg;
 
         logChargeStart(now, i, need, chargeActive,
                        (maxChargingSlots<=0 ? -1 : maxChargingSlots));
+        logSnapshot(now, "after CHARGE_START");
 
         felPush(now + tchg, EV_CHARGE_END, i);
         --freeSlots;
@@ -365,14 +358,14 @@ AnsiString Master::reportOne(int sid) const {
     const Sensor* s = (*sensors)[sid];
     double T = now;
 
-    int    A  = arrivals[sid];      // offered arrivals
-    int    D  = s->drops;           // drops at queue-full
-    int    S  = served[sid];        // completed
-    int    B  = (int)s->q.size() + (s->serving ? 1 : 0); // backlog at end
+    int    A  = arrivals[sid];
+    int    D  = s->drops;
+    int    S  = served[sid];
+    int    B  = (int)s->q.size() + (s->serving ? 1 : 0);
 
     double Lq_hat  = (T > 0) ? (sumQ[sid] / T) : 0.0;
-    double lam_off = (T > 0) ? ((double)A / T) : 0.0;    // offered rate
-    double lam_car = (T > 0) ? ((double)S / T) : 0.0;    // carried rate (throughput)
+    double lam_off = (T > 0) ? ((double)A / T) : 0.0;
+    double lam_car = (T > 0) ? ((double)S / T) : 0.0;
     double loss    = (A > 0) ? ((double)D / (double)A) : 0.0;
     double Wq_hat  = (lam_car > 0) ? (Lq_hat / lam_car) : 0.0;
 
@@ -422,66 +415,74 @@ AnsiString Master::reportAll() const {
     out += "arrivals(A)  = " + IntToStr((int)A) + "\n";
     out += "drops(D)     = " + IntToStr((int)D) + "\n";
     out += "served(S)    = " + IntToStr((int)S) + "\n";
-	out += "backlog(B)   = " + IntToStr((int)B) + "\n";
-	out += "Lq_hat       = " + FloatToStrF(Lq_hat,   ffFixed, 7, 4) + "\n";
-	out += "lambda_off   = " + FloatToStrF(lam_off,  ffFixed, 7, 4) + "\n";
-	out += "lambda_car   = " + FloatToStrF(lam_car,  ffFixed, 7, 4) + "\n";
-	out += "loss_rate    = " + FloatToStrF(loss,     ffFixed, 7, 4) + "  (= D/A)\n";
-	out += "Wq_hat       = " + FloatToStrF(Wq_hat,   ffFixed, 7, 4) + "  (Little: Lq/λ_car)\n";
-	out += "TX busy      = " + FloatToStrF(txBusy,   ffFixed, 7, 4) + "\n";
-	out += "avg charging = " + FloatToStrF(avgCharg, ffFixed, 7, 4) + "\n";
-	out += "A ?= D + S + B  →  " + IntToStr((int)A) + " ?= " + IntToStr((int)(D+S+B)) + "\n";
-	out += "(Shared-HAP w/ FDM charging; no simple closed form)\n";
-	return out;
+    out += "backlog(B)   = " + IntToStr((int)B) + "\n";
+    out += "Lq_hat       = " + FloatToStrF(Lq_hat,   ffFixed, 7, 4) + "\n";
+    out += "lambda_off   = " + FloatToStrF(lam_off,  ffFixed, 7, 4) + "\n";
+    out += "lambda_car   = " + FloatToStrF(lam_car,  ffFixed, 7, 4) + "\n";
+    out += "loss_rate    = " + FloatToStrF(loss,     ffFixed, 7, 4) + "  (= D/A)\n";
+    out += "Wq_hat       = " + FloatToStrF(Wq_hat,   ffFixed, 7, 4) + "  (Little: Lq/λ_car)\n";
+    out += "TX busy      = " + FloatToStrF(txBusy,   ffFixed, 7, 4) + "\n";
+    out += "avg charging = " + FloatToStrF(avgCharg, ffFixed, 7, 4) + "\n";
+    out += "A ?= D + S + B  →  " + IntToStr((int)A) + " ?= " + IntToStr((int)(D+S+B)) + "\n";
+    out += "(Shared-HAP w/ FDM charging; no simple closed form)\n";
+    return out;
 }
 
 /* ==================== Logger ==================== */
 
 void Master::logArrival(double t,int sid,int pid,int q,int ep){
-	timeline.push_back("t=" + f2(t,3) + "  sensor=" + IntToStr(sid) +
-		"  pkg=" + IntToStr(pid) + "  ARRIVAL      Q=" + IntToStr(q) + "  EP=" + IntToStr(ep));
+    timeline.push_back(
+        AnsiString("t=") + f2(t,3) +
+        "  sensor=" + IntToStr(sid) +
+        "  pkg=" + IntToStr(pid) +
+        "  ARRIVAL      Q=" + IntToStr(q) +
+        "  EP=" + IntToStr(ep)
+    );
 }
 
-void Master::logStartTx(double t,int sid,int pid,double st,int epBefore){
-    AnsiString line = AnsiString("t=") + f2(t,3)
-        + "  HAP      START_TX sensor=" + IntToStr(sid)
-        + "  pkg=" + IntToStr(pid)
-        + "  st=" + f2(st,3)
-        + "  EP->" + IntToStr(epBefore - (*sensors)[sid]->r_tx);
-    timeline.push_back(line);
+void Master::logStartTx(double t,int sid,int pid,double st,int epBefore,int epCost){
+    timeline.push_back(
+        AnsiString("t=") + f2(t,3) +
+        "  HAP      START_TX sensor=" + IntToStr(sid) +
+        "  pkg=" + IntToStr(pid) +
+        "  st=" + f2(st,3) +
+        "  EP->" + IntToStr(epBefore - epCost)
+    );
 }
 
 void Master::logEndTx(double t,int sid,int pid,int q,int epNow){
-    AnsiString line = AnsiString("t=") + f2(t,3)
-        + "  HAP      END_TX   sensor=" + IntToStr(sid)
-        + "  pkg=" + IntToStr(pid)
-        + "  served=" + IntToStr(served[sid]+1)
-        + "  Q=" + IntToStr(q)
-        + "  EP=" + IntToStr(epNow);
-    timeline.push_back(line);
+    timeline.push_back(
+        AnsiString("t=") + f2(t,3) +
+        "  HAP      END_TX   sensor=" + IntToStr(sid) +
+        "  pkg=" + IntToStr(pid) +
+        "  served=" + IntToStr(served[sid] + 1) +
+        "  Q=" + IntToStr(q) +
+        "  EP=" + IntToStr(epNow)
+    );
 }
 
 void Master::logChargeStart(double t,int sid,int need,int active,int cap){
-    AnsiString capStr = (cap<=0 ? AnsiString("inf") : AnsiString(IntToStr(cap)));
-    AnsiString line = AnsiString("t=") + f2(t,3)
-        + "  sensor=" + IntToStr(sid)
-        + "  CHARGE_START need=" + IntToStr(need)
-        + "  active=" + IntToStr(active) + "/" + capStr;
-    timeline.push_back(line);
+    AnsiString capStr = (cap <= 0) ? AnsiString("inf") : AnsiString((int)cap);
+    timeline.push_back(
+        AnsiString("t=") + f2(t,3) +
+        "  sensor=" + IntToStr(sid) +
+        "  CHARGE_START need=" + IntToStr(need) +
+        "  active=" + IntToStr(active) + AnsiString("/") + capStr
+    );
 }
 
 void Master::logChargeEnd(double t,int sid,int add,int epNow){
-    AnsiString line = AnsiString("t=") + f2(t,3)
-        + "  sensor=" + IntToStr(sid)
-        + "  CHARGE_END   +" + IntToStr(add) + "EP"
-        + "  EP=" + IntToStr(epNow);
-    timeline.push_back(line);
+    timeline.push_back(
+        AnsiString("t=") + f2(t,3) +
+        "  sensor=" + IntToStr(sid) +
+        "  CHARGE_END   +" + IntToStr(add) + "EP" +
+        "  EP=" + IntToStr(epNow)
+    );
 }
 
 AnsiString Master::dumpLogWithSummary() const {
     TStringList *sl = new TStringList();
 
-    // header
     sl->Add("# Run header");
     sl->Add( AnsiString("T=") + f2(now,2)
            + ", tau=" + f2(switchover,3)
@@ -489,16 +490,50 @@ AnsiString Master::dumpLogWithSummary() const {
            + ", N=" + IntToStr(sensors ? (int)sensors->size() : 0) );
     sl->Add("");
 
-    // timeline
     sl->Add("# === Timeline ===");
     for (size_t i=0;i<timeline.size();++i) sl->Add(timeline[i]);
     sl->Add("");
 
-    // ...後面你的 Summary 保持不變...
-    // （如果有 const char* + AnsiString 的地方，同樣把左邊包成 AnsiString("...")）
-
     AnsiString out = sl->Text;
     delete sl;
     return out;
+}
+
+AnsiString Master::stateLine() const {
+    int N = sensors ? (int)sensors->size() : 0;
+    AnsiString s = "  [";
+    for (int i = 0; i < N; ++i) {
+        const Sensor* x = (*sensors)[i];
+
+        double epVis = x->energy;
+        if ((size_t)N == charging.size() && charging[i]) {
+            double prog = (now - chargeStartT[i]) * std::max(x->charge_rate, 1e-9);
+            if (prog < 0) prog = 0;
+            if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
+            epVis += prog;
+        }
+
+        s += "S" + IntToStr(i) + "=" + x->queueToStr();
+        if (x->serving) s += "(S:" + IntToStr(x->servingId) + ")";
+        s += " EP=" + IntToStr(x->energy);
+		if (epVis != x->energy) s += " (" + f2(epVis,3) + ")";
+        if (charging.size()==(size_t)N && charging[i]) s += " (chg)";
+        if (i + 1 < N) s += " | ";
+    }
+    s += "]  HAP=";
+    if (hapTxBusy && hapTxSid >= 0) {
+        const Sensor* hs = (*sensors)[hapTxSid];
+        s += "sid=" + IntToStr(hapTxSid) + ", pkg=" +
+             (hs->currentServingId() >= 0 ? AnsiString(IntToStr(hs->currentServingId())) : AnsiString("-"));
+    } else {
+        s += "idle";
+    }
+    return s;
+}
+
+void Master::logSnapshot(double t, const char* tag) {
+    if (!logStateEachEvent) return;
+    timeline.push_back(AnsiString("t=") + f2(t,3) + "  STATE " + AnsiString(tag));
+    timeline.push_back(stateLine());
 }
 
