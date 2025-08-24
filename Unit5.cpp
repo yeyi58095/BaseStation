@@ -164,6 +164,9 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	AnsiString msg = FloatToStr(master.switchover)+ " \n" + master.reportOne(0);
 	SaveMsgToFile(msg, "report.txt");
 
+	AnsiString text = master.dumpLogWithSummary();
+	SaveMsgToFile(text, "run_log.txt");
+
 	this->DebugLabel->Caption = "" ;
 }
 //---------------------------------------------------------------------------
@@ -317,6 +320,7 @@ void __fastcall TForm5::ckbEPClick(TObject *Sender)
 	Form5->ckbRtx->Checked = false;}
 }
 //---------------------------------------------------------------------------
+
 
 
 

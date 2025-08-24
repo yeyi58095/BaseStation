@@ -9,8 +9,9 @@ Sensor::Sensor(int id)
   ITpara1(1.0), ITpara2(0.0),
   STpara1(1.5), STpara2(0.0),
   energy(0), E_cap(100), r_tx(1), charge_rate(1.0),
-  Qmax(-1), drops(0)                // <-- 新增預設
-{
+  Qmax(-1), drops(0) ,               // <-- 新增預設
+  pktSeq(0), init_preload(0)
+  {
 }
 
 
@@ -39,12 +40,12 @@ double Sensor::sampleST() const {
 }
 
 void Sensor::enqueueArrival() {
-    static int nextId = 1;
+	static int nextId = 1;
     if (Qmax >= 0 && (int)q.size() >= Qmax) {  // 滿了就丟
         drops++;
         return;
     }
-    q.push_back(nextId++);
+	q.push_back(++pktSeq);
 }
 
 bool Sensor::canTransmit() const {
@@ -52,17 +53,28 @@ bool Sensor::canTransmit() const {
 }
 
 double Sensor::startTx() {
-    if (!q.empty()) q.pop_front();
-    // consume EP at start (integer)
-    if (energy >= r_tx) energy -= r_tx; else energy = 0;
-    serving = true;
+    if (serving || q.empty() || energy < r_tx) return 0.0;
+
+    int pid = q.front();
+    q.pop_front();
+
+    serving   = true;
+    servingId = pid;
+
+    // 扣除發送所需能量（整數）
+    energy -= r_tx;
+    if (energy < 0) energy = 0;
+
+    // 抽服務時間
     double st = sampleST();
     if (st <= 0) st = 1e-9;
     return st;
 }
 
+
 void Sensor::finishTx() {
-    serving = false;
+	serving = false;
+	servingId = -1;
 }
 
 void Sensor::addEnergy(int units) {

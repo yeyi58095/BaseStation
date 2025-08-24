@@ -100,7 +100,24 @@ public:
 
     // reports
     AnsiString reportOne(int sid) const;
-    AnsiString reportAll() const;
+	AnsiString reportAll() const;
+
+public: // for logger
+	// --- logging（public 讓 UI 可取） ---
+	int keepLogIds;                         // 每個 list 最多保留幾個 id
+	std::vector<AnsiString> timeline;             // 事件逐行
+	std::vector< std::vector<int> > arrivedIds;     // 每 sensor 的到達 id
+	std::vector< std::vector<int> > servedIds;      // 每 sensor 的離開 id
+
+	void logArrival(double t,int sid,int pid,int q,int ep);
+	void logStartTx(double t,int sid,int pid,double st,int epBefore);
+	void logEndTx(double t,int sid,int pid,int q,int epNow);
+	void logChargeStart(double t,int sid,int need,int active,int cap);
+	void logChargeEnd(double t,int sid,int add,int epNow);
+
+	// 把 timeline + summary 串成一段文字
+	AnsiString dumpLogWithSummary() const;
+
 };
 
 } // namespace sim
