@@ -64,7 +64,16 @@ public:
     // traces for plots
     bool recordTrace;
     std::vector< std::vector<double> > traceT, traceQ, traceMeanQ; // per sensor
-    std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;    // overall
+	std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;    // overall
+
+	// 每個 sensor 的 EP 時間序列
+	std::vector< std::vector<double> > traceE;     // energy(t) 以 double 存
+	std::vector< std::vector<double> > traceRtx;   // r_tx 門檻（畫水平線用；每點重覆同值）
+
+	// 全體聚合
+	std::vector<double> traceE_all;      // 全體 EP 總和
+	std::vector<double> traceEavg_all;   // 全體 EP 平均
+
 
 public:
     Master();

@@ -41,6 +41,8 @@ __published:	// IDE-managed Components
 	TEdit *maxCharginSlotEdit;
 	TLabel *Label6;
 	TLabel *log;
+	TFastLineSeries *SeriesThreshold;
+	TFastLineSeries *SeriesEP;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);

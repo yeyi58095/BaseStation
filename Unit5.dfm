@@ -142,6 +142,22 @@ object Form5: TForm5
       YValues.Name = 'Y'
       YValues.Order = loNone
     end
+    object SeriesThreshold: TFastLineSeries
+      Title = 'Threshold'
+      LinePen.Color = 1330417
+      XValues.Name = 'X'
+      XValues.Order = loAscending
+      YValues.Name = 'Y'
+      YValues.Order = loNone
+    end
+    object SeriesEP: TFastLineSeries
+      Title = 'EP'
+      LinePen.Color = 11048782
+      XValues.Name = 'X'
+      XValues.Order = loAscending
+      YValues.Name = 'Y'
+      YValues.Order = loNone
+    end
   end
   object plotButton: TButton
     Left = 64

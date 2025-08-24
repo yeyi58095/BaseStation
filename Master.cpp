@@ -42,7 +42,13 @@ void Master::setSensors(std::vector<Sensor*>* v) {
     traceT.assign(N, std::vector<double>());
     traceQ.assign(N, std::vector<double>());
     traceMeanQ.assign(N, std::vector<double>());
-    traceT_all.clear(); traceQ_all.clear(); traceMeanQ_all.clear();
+	traceT_all.clear(); traceQ_all.clear(); traceMeanQ_all.clear();
+
+	traceE.assign(N, std::vector<double>());
+	traceRtx.assign(N, std::vector<double>());
+	traceE_all.clear();
+	traceEavg_all.clear();
+
 }
 
 void Master::reset() {
@@ -55,7 +61,7 @@ void Master::reset() {
     felClear();
 
     int N = (sensors ? (int)sensors->size() : 0);
-    for (int i=0;i<N;++i) {
+	for (int i=0;i<N;++i) {
         sumQ[i] = 0.0; served[i] = 0; arrivals[i] = 0;
         charging[i] = false; pendCharge[i] = 0;
         if (recordTrace) {
@@ -63,6 +69,15 @@ void Master::reset() {
         }
     }
 	traceT_all.clear(); traceQ_all.clear(); traceMeanQ_all.clear();
+
+	for (int i=0;i<N;++i){
+		// ... 你原本的清空 ...
+		traceE[i].clear();
+		traceRtx[i].clear();
+	}
+	traceE_all.clear();
+	traceEavg_all.clear();
+
 }
 
 void Master::run() {
@@ -174,9 +189,14 @@ void Master::accumulate() {
             traceT[i].push_back(now);
             traceQ[i].push_back(qlen);
             double meanQ = (now > 0) ? (sumQ[i] / now) : 0.0;
-            traceMeanQ[i].push_back(meanQ);
+			traceMeanQ[i].push_back(meanQ);
+
+						// for each sensor i
+			traceE[i].push_back( (double)(*sensors)[i]->energy );
+			traceRtx[i].push_back( (double)(*sensors)[i]->r_tx );
+
         }
-    }
+	}
 
     // HAP busy (TX) and charging parallel count
     busySumTx      += dt * (hapTxBusy ? 1 : 0);
@@ -187,7 +207,14 @@ void Master::accumulate() {
         traceQ_all.push_back(totalQ);
         double sumQtot = 0.0;
         for (int i=0;i<N;++i) sumQtot += sumQ[i];
-        traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
+		traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
+
+        double Esum = 0.0;
+		for (int i=0;i<N;++i) Esum += (double)(*sensors)[i]->energy;
+		traceE_all.push_back(Esum);
+		traceEavg_all.push_back( (N>0)? (Esum / N) : 0.0 );
+
+
     }
 
     prev = now;
