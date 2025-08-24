@@ -236,9 +236,6 @@ void PlotTraceAll(bool epAverage = true) {
 
 }
 
-
-
-
 void PlotTraceOne(int sid) {
 	if (sid < 0 || sid >= (int)master.traceT.size()) return;
 

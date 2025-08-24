@@ -207,23 +207,70 @@ void Master::run() {
 			break;
 		}
 
+		case EV_CHARGE_STEP: {
+			if (sid < 0 || sid >= (int)sensors->size()) break;
+			Sensor* s = (*sensors)[sid];
+			if (!s) break;
 
-        case EV_HAP_POLL: {
-            scheduleIfIdle();
-            break;
-        }
-        }
+			if (!charging[sid]) {
+				// 有可能外部被中止；安全起見什麼也不做
+				break;
+			}
 
-        if (now >= endTime) break;
-    }
+			// +1 EP（立刻對真實 energy 生效）
+			int before = s->energy;
+			s->addEnergy(1);
+			// （可選）偶爾記一筆 tick log，避免太爆
+			// if (s->energy == s->E_cap || (s->energy % 10) == 0)
+			//     timeline.push_back( ... " CHARGE_TICK EP=" + IntToStr(s->energy) );
 
-    if (now < endTime) { now = endTime; accumulate(); }
+			if (s->energy >= s->E_cap) {
+				// 充滿 → 結束這個slot
+				int added = s->E_cap - (before - 0); // 只是示意；你也可以額外存一個 chargeAdded[sid] 來累計
+				logChargeEnd(now, sid, added /*或 pendCharge[sid] 也行*/, s->energy);
+
+				charging[sid] = false;
+				if (chargeActive > 0) chargeActive--;
+				pendCharge[sid] = 0;
+				chargeStartT[sid] = 0.0;
+				chargeEndT[sid]   = 0.0;
+
+				// 讓排程有機會立刻選TX
+				felPush(now + EPS, EV_HAP_POLL, -1);
+				logSnapshot(now, "after CHARGE_FULL");
+			} else {
+				// 還沒滿 → 繼續下一個 +1
+				double dt = 1.0 / std::max(s->charge_rate, 1e-9);
+				if (dt <= EPS) dt = EPS;
+				felPush(now + dt, EV_CHARGE_STEP, sid);
+
+				// 讓排程看看：也許現在已經 >= r_tx 可以開傳了
+				felPush(now + EPS, EV_HAP_POLL, -1);
+				logSnapshot(now, "after CHARGE_TICK");
+			}
+			break;
+		}
+
+
+		case EV_HAP_POLL: {
+			scheduleIfIdle();
+			break;
+		}
+		}
+
+		if (now >= endTime) break;
+
+
+
+	}
+
+	if (now < endTime) { now = endTime; accumulate(); }
 }
 
 void Master::felClear() {
-    EvNode* c = felHead->next;
-    while (c) { EvNode* d = c; c = c->next; delete d; }
-    felHead->next = 0;
+	EvNode* c = felHead->next;
+	while (c) { EvNode* d = c; c = c->next; delete d; }
+	felHead->next = 0;
 }
 
 void Master::felPush(double t, EventType tp, int sid) {
@@ -318,24 +365,24 @@ void Master::scheduleIfIdle() {
                          * epCoef * (double)s->energy;
             if (score > bestScore) { bestScore = score; pickTX = i; }
         }
-        if (pickTX >= 0) {
-            Sensor* s = (*sensors)[pickTX];
+		if (pickTX >= 0) {
+			Sensor* s = (*sensors)[pickTX];
 
-            // peek before startTx() mutates the state
-            int    pid      = s->frontId();
-            double st_need  = s->frontST(); if (st_need <= EPS) st_need = EPS;
-            int    epCost   = s->frontNeedEP();
-            int    epBefore = s->energy;
+			// peek before startTx() mutates the state
+			int    pid      = s->frontId();
+			double st_need  = s->frontST(); if (st_need <= EPS) st_need = EPS;
+			int    epCost   = s->frontNeedEP();
+			int    epBefore = s->energy;
 
-            double st = s->startTx(); if (st <= EPS) st = st_need;
-            hapTxBusy = true; hapTxSid = pickTX;
+			double st = s->startTx(); if (st <= EPS) st = st_need;
+			hapTxBusy = true; hapTxSid = pickTX;
 
-            logStartTx(now, pickTX, pid, st_need, epBefore, epCost);
-            logSnapshot(now, "after START_TX");
+			logStartTx(now, pickTX, pid, st_need, epBefore, epCost);
+			logSnapshot(now, "after START_TX");
 
-            felPush(now + switchover + st_need, EV_TX_DONE, pickTX);
-        }
-    }
+			felPush(now + switchover + st_need, EV_TX_DONE, pickTX);
+		}
+	}
 
 	// (B) Charging pipeline (FDM)
 	int freeSlots = (maxChargingSlots <= 0) ? 0x3fffffff : (maxChargingSlots - chargeActive);
@@ -346,8 +393,8 @@ void Master::scheduleIfIdle() {
 		if (s->charge_rate <= 0) continue;   // 不能充
 		if (charging[i]) continue;           // 已在充
 
-		bool hasWork = ((int)s->q.size() > 0) || s->serving;
-		if (!hasWork) continue;              // 沒在運作就不充
+		//bool hasWork = ((int)s->q.size() > 0) || s->serving;
+		//if (!hasWork) continue;              // 沒在運作就不充
 
 		if (s->energy >= s->E_cap) continue; // 已滿當然不充
 
@@ -560,22 +607,20 @@ void Master::startChargeToFull(int sid) {
     if (s->charge_rate <= 0) return;
     if (s->energy >= s->E_cap) return;
 
-    int need = s->E_cap - s->energy;
-    if (need < 1) need = 1;
-    double tchg = need / std::max(s->charge_rate, 1e-9);
-    if (tchg <= EPS) tchg = EPS;
-
     charging[sid]   = true;
     chargeActive++;
-    pendCharge[sid] = need;
+    pendCharge[sid] = s->E_cap - s->energy;  // 只拿來記錄/log起充時的需求量
 
     chargeStartT[sid] = now;
-    chargeEndT[sid]   = now + tchg;
+    chargeEndT[sid]   = 0.0; // 這個欄位變成可選
 
-    logChargeStart(now, sid, need, chargeActive, (maxChargingSlots<=0 ? -1 : maxChargingSlots));
+    logChargeStart(now, sid, pendCharge[sid], chargeActive,
+                   (maxChargingSlots<=0 ? -1 : maxChargingSlots));
     logSnapshot(now, "after CHARGE_START");
 
-    felPush(now + tchg, EV_CHARGE_END, sid);
+    // NEW: 改成步進式，每隔 dt = 1/charge_rate +1 EP
+    double dt = 1.0 / std::max(s->charge_rate, 1e-9);
+    if (dt <= EPS) dt = EPS;
+    felPush(now + dt, EV_CHARGE_STEP, sid);
 }
-
 

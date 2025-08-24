@@ -11,7 +11,9 @@ enum EventType {
     EV_DP_ARRIVAL = 0,   // data packet arrival
     EV_TX_DONE    = 1,   // HAP finished a transmission
     EV_CHARGE_END = 2,   // charging finished for this segment
-    EV_HAP_POLL   = 3    // trigger scheduler
+	EV_HAP_POLL   = 3,    // trigger scheduler
+	EV_CHARGE_STEP = 4   // 每個tick(+1 EP) 都用這個事件
+
 };
 
 // FEL node
