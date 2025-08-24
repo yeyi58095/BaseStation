@@ -3,7 +3,7 @@ object Chooser: TChooser
   Top = 0
   Caption = 'Chooser'
   ClientHeight = 127
-  ClientWidth = 735
+  ClientWidth = 836
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
@@ -106,7 +106,7 @@ object Chooser: TChooser
     Left = 346
     Top = 24
     Width = 47
-    Height = 16
+    Height = 21
     TabOrder = 2
     Text = '-1'
     OnChange = qmaxEditChange
@@ -124,7 +124,7 @@ object Chooser: TChooser
     Left = 624
     Top = 24
     Width = 65
-    Height = 16
+    Height = 21
     TabOrder = 4
     Text = '100'
     OnChange = ECapEditChange
@@ -151,9 +151,18 @@ object Chooser: TChooser
     Left = 623
     Top = 100
     Width = 72
-    Height = 19
+    Height = 21
     TabOrder = 7
     Text = '1'
     OnChange = Edit1Change
+  end
+  object Button3: TButton
+    Left = 728
+    Top = 41
+    Width = 75
+    Height = 25
+    Caption = 'ok'
+    TabOrder = 8
+    OnClick = Button3Click
   end
 end

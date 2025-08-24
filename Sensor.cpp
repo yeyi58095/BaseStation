@@ -106,11 +106,12 @@ AnsiString Sensor::toString() const {
         default: msg += "(unknown)"; break;
     }
 
-    msg += "\nEP: energy=" + IntToStr(energy) +
-           ", cap=" + IntToStr(E_cap) +
-           ", r_tx=" + IntToStr(r_tx) +
-           ", charge_rate=" + FloatToStrF(charge_rate, ffFixed, 7, 3) + "\n";
-    return msg;
+	msg += "\nDP: Qmax=" + IntToStr(this->Qmax) +
+			"\nEP: energy=" + IntToStr(energy) +
+		   ", cap=" + IntToStr(E_cap) +
+		   ", r_tx=" + IntToStr(r_tx) +
+		   ", charge_rate=" + FloatToStrF(charge_rate, ffFixed, 7, 3) + "\n";
+	return msg;
 }
 
 

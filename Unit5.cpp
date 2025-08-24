@@ -20,6 +20,7 @@ std::vector<Sensor*> sensors;
 sim::Master master;
 void PlotTraceOne(int);
 void PlotTraceAll();
+bool runned = false;
 __fastcall TForm5::TForm5(TComponent* Owner)
 	: TForm(Owner)
 {
@@ -57,28 +58,29 @@ void __fastcall TForm5::sensorAmountEditChange(TObject *Sender)
 
 void __fastcall TForm5::generatorButtonClick(TObject *Sender)
 {
-	    // 清掉舊 sensor
+		// 清掉舊 sensor
+	runned = false;
 	for (size_t i=0;i<sensors.size();++i) delete sensors[i];
 	sensors.clear();
 	this->selectSensorComboBox->Clear();
 	this->selectVisitComboBox->Clear();
 	int n = StrToIntDef(sensorAmountEdit->Text, 1);
 	for (int i=0;i<n;++i) {
-        Sensor* s = new Sensor(i);
+		Sensor* s = new Sensor(i);
 		s->setArrivalExp(0.4);  // λ_i，UI 再改
 		s->setServiceExp(1.5);  // μ_i，UI 再改
 		sensors.push_back(s);
 		selectSensorComboBox->Items->Add(IntToStr(i+1));
 	}
 
-    selectVisitComboBox->Clear();
+	selectVisitComboBox->Clear();
 	selectVisitComboBox->Items->Add("All sensors"); // index 0
 	for (int i=0;i<n;++i)
 		selectVisitComboBox->Items->Add("Sensor " + IntToStr(i+1));
 	selectVisitComboBox->ItemIndex = 0;
 
-    master.setSensors(&sensors);
-    double T = StrToFloatDef(endTimeEdit->Text, 10000.0);
+	master.setSensors(&sensors);
+	double T = StrToFloatDef(endTimeEdit->Text, 10000.0);
 	master.setEndTime(T);
 	if (n>0) selectSensorComboBox->ItemIndex = 0;
 }
@@ -92,20 +94,26 @@ void SaveMsgToFile(const AnsiString& msg, const AnsiString& fileName)
 {
 	TStringList* sl = new TStringList();
 	sl->Text = msg;
-    sl->SaveToFile(fileName);   // 預設 ANSI；要 UTF-8 可改用 TEncoding
-    delete sl;
+	sl->SaveToFile(fileName);   // 預設 ANSI；要 UTF-8 可改用 TEncoding
+	delete sl;
 }
 
 
 void __fastcall TForm5::DubugClick(TObject *Sender)
 {
+
 	this->Dubug->Caption = "Run";
 	rv::reseed(12345);
+	if(runned){
+		return ;
+	}
 
 	master.run();
 
+	runned = true;
 	//AnsiString all = master.reportAll();
 	//ShowMessage(all);
+	PlotTraceAll();
 	AnsiString msg = FloatToStr(master.switchover)+ " \n" + master.reportOne(0);
 	SaveMsgToFile(msg, "report.txt");
 }

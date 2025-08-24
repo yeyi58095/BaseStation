@@ -29,6 +29,7 @@ __published:	// IDE-managed Components
 	TEdit *rTxEdit;
 	TLabel *Label5;
 	TEdit *Edit1;
+	TButton *Button3;
 	void __fastcall OnShow(TObject *Sender);
 	void __fastcall Button1Click(TObject *Sender);
 	void __fastcall Button2Click(TObject *Sender);
@@ -38,6 +39,7 @@ __published:	// IDE-managed Components
 	void __fastcall EnergyEditChange(TObject *Sender);
 	void __fastcall rTxEditChange(TObject *Sender);
 	void __fastcall Edit1Change(TObject *Sender);
+	void __fastcall Button3Click(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TChooser(TComponent* Owner);

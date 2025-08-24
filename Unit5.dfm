@@ -65,23 +65,15 @@ object Form5: TForm5
   object log: TLabel
     Left = 792
     Top = 46
-    Width = 11
+    Width = 3
     Height = 13
-  end
-  object Button1: TButton
-    Left = 0
-    Top = -7
-    Width = 75
-    Height = 25
-    Caption = 'Button1'
-    TabOrder = 0
   end
   object sensorAmountEdit: TEdit
     Left = 120
     Top = 21
     Width = 73
     Height = 21
-    TabOrder = 1
+    TabOrder = 0
     Text = '1'
     OnChange = sensorAmountEditChange
   end
@@ -91,7 +83,7 @@ object Form5: TForm5
     Width = 73
     Height = 17
     Caption = 'Generate'
-    TabOrder = 2
+    TabOrder = 1
     OnClick = generatorButtonClick
   end
   object selectSensorComboBox: TComboBox
@@ -99,7 +91,7 @@ object Form5: TForm5
     Top = 43
     Width = 145
     Height = 21
-    TabOrder = 3
+    TabOrder = 2
     Text = 'selectSensorComboBox'
     OnChange = selectSensorComboBoxChange
   end
@@ -109,7 +101,7 @@ object Form5: TForm5
     Width = 75
     Height = 25
     Caption = 'Dubug'
-    TabOrder = 4
+    TabOrder = 3
     OnClick = DubugClick
   end
   object selectVisitComboBox: TComboBox
@@ -117,7 +109,7 @@ object Form5: TForm5
     Top = 301
     Width = 145
     Height = 21
-    TabOrder = 5
+    TabOrder = 4
     Text = 'selectVisitComboBox'
     OnChange = selectVisitComboBoxChange
   end
@@ -131,7 +123,7 @@ object Form5: TForm5
     Chart3DPercent = 1
     View3D = False
     Zoom.Pen.Width = 0
-    TabOrder = 6
+    TabOrder = 5
     DefaultCanvas = 'TGDIPlusCanvas'
     ColorPaletteIndex = 13
     object SeriesCurrent: TFastLineSeries
@@ -157,7 +149,7 @@ object Form5: TForm5
     Width = 75
     Height = 25
     Caption = 'plot'
-    TabOrder = 7
+    TabOrder = 6
     OnClick = plotButtonClick
   end
   object endTimeEdit: TEdit
@@ -165,7 +157,7 @@ object Form5: TForm5
     Top = 70
     Width = 121
     Height = 21
-    TabOrder = 8
+    TabOrder = 7
     Text = '10000'
     OnChange = endTimeEditChange
   end
@@ -174,7 +166,7 @@ object Form5: TForm5
     Top = 97
     Width = 121
     Height = 21
-    TabOrder = 9
+    TabOrder = 8
     Text = '0'
     OnChange = switchOverEditChange
   end
@@ -183,7 +175,7 @@ object Form5: TForm5
     Top = 124
     Width = 28
     Height = 21
-    TabOrder = 10
+    TabOrder = 9
     Text = '0'
     OnChange = maxCharginSlotEditChange
   end

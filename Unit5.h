@@ -21,7 +21,6 @@
 class TForm5 : public TForm
 {
 __published:	// IDE-managed Components
-	TButton *Button1;
 	TLabel *Label1;
 	TEdit *sensorAmountEdit;
 	TButton *generatorButton;

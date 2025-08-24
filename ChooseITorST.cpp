@@ -87,3 +87,9 @@ void __fastcall TChooser::Edit1Change(TObject *Sender)
 }
 //---------------------------------------------------------------------------
 
+void __fastcall TChooser::Button3Click(TObject *Sender)
+{
+	Close();
+}
+//---------------------------------------------------------------------------
+
