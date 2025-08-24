@@ -167,25 +167,46 @@ void Master::run() {
 
             felPush(now + EPS, EV_HAP_POLL, -1);
             logSnapshot(now, "after END_TX");
-            break;
-        }
+			break;
+		}
 
-        case EV_CHARGE_END: {
-            if (sid >= 0 && sid < (int)pendCharge.size()) {
-                Sensor* s = (*sensors)[sid];
-                logChargeEnd(now, sid, pendCharge[sid], s->energy + pendCharge[sid]);
+		case EV_CHARGE_END: {
+			if (sid >= 0 && sid < (int)pendCharge.size()) {
+				Sensor* s = (*sensors)[sid];
 
-                s->addEnergy(pendCharge[sid]); // add the planned EP
-                pendCharge[sid] = 0;
+				// 先記 log（用加完後的值給 log），再真的加
+				logChargeEnd(now, sid, pendCharge[sid], s->energy + pendCharge[sid]);
+				s->addEnergy(pendCharge[sid]);    // 真正加 EP（整數，會 clamp 到 cap）
+				pendCharge[sid] = 0;
 
-                if (charging[sid]) { charging[sid] = false; chargeActive--; }
-                chargeStartT[sid] = 0.0;
-                chargeEndT[sid]   = 0.0;
-            }
-            felPush(now + EPS, EV_HAP_POLL, -1);
-            logSnapshot(now, "after CHARGE_END");
-            break;
-        }
+				// 還沒滿 → 立刻排下一段續充（仍視為同一個 slot，chargeActive 不變）
+				if (s->energy < s->E_cap) {
+					int needRem = s->E_cap - s->energy;
+					double tchg = needRem / std::max(s->charge_rate, 1e-9);
+					if (needRem < 1) needRem = 1;
+					if (tchg <= EPS) tchg = EPS;
+
+					pendCharge[sid]  = needRem;
+					chargeStartT[sid] = now;
+					chargeEndT[sid]   = now + tchg;
+
+					// 這裡 active 不變、不+1
+					logChargeStart(now, sid, needRem, chargeActive, (maxChargingSlots<=0 ? -1 : maxChargingSlots));
+					logSnapshot(now, "after CHARGE_CONTINUE");
+
+					felPush(now + tchg, EV_CHARGE_END, sid);
+				} else {
+					// 滿了 → 結束這個充電 slot
+					if (charging[sid]) { charging[sid] = false; chargeActive--; }
+					chargeStartT[sid] = 0.0;
+					chargeEndT[sid]   = 0.0;
+				}
+			}
+			felPush(now + EPS, EV_HAP_POLL, -1);
+			logSnapshot(now, "after CHARGE_END");
+			break;
+		}
+
 
         case EV_HAP_POLL: {
             scheduleIfIdle();
@@ -316,39 +337,28 @@ void Master::scheduleIfIdle() {
         }
     }
 
-    // (B) Charging (FDM): keep charging while operating and not full
-    int freeSlots = (maxChargingSlots <= 0)
-                  ? 0x3fffffff
-                  : (maxChargingSlots - chargeActive);
+	// (B) Charging pipeline (FDM)
+	int freeSlots = (maxChargingSlots <= 0) ? 0x3fffffff : (maxChargingSlots - chargeActive);
 
-    for (int i=0; i<N && freeSlots > 0; ++i) {
-        Sensor* s = (*sensors)[i];
+	for (int i=0; i<N && freeSlots > 0; ++i) {
+		Sensor* s = (*sensors)[i];
+		if (!s) continue;
+		if (s->charge_rate <= 0) continue;   // 不能充
+		if (charging[i]) continue;           // 已在充
 
-        if (s->charge_rate <= 0) continue;         // can't charge
-        if (charging[i])       continue;           // already charging
-        if ((int)s->q.size() <= 0 && !s->serving) continue; // not operating
-        if (s->energy >= s->E_cap) continue;       // already full
+		bool hasWork = ((int)s->q.size() > 0) || s->serving;
+		if (!hasWork) continue;              // 沒在運作就不充
 
-        int need = s->E_cap - s->energy;           // top-up to full
-        if (need < 1) need = 1;
+		if (s->energy >= s->E_cap) continue; // 已滿當然不充
 
-        double tchg = need / std::max(s->charge_rate, 1e-9);
-        if (tchg <= EPS) tchg = EPS;
+		// 判斷啟動條件：EP 低於門檻(或不夠下一包)
+		int gate = std::max(s->r_tx, needEPForHead(i));
+		if (s->energy >= gate) continue;     // 夠傳且未低於門檻 → 不啟動
 
-        charging[i]   = true;
-        chargeActive++;
-        pendCharge[i] = need;
-
-        chargeStartT[i] = now;
-        chargeEndT[i]   = now + tchg;
-
-        logChargeStart(now, i, need, chargeActive,
-                       (maxChargingSlots<=0 ? -1 : maxChargingSlots));
-        logSnapshot(now, "after CHARGE_START");
-
-        felPush(now + tchg, EV_CHARGE_END, i);
-        --freeSlots;
-    }
+		// ★ 符合條件才啟動，而且一啟動就補到滿
+		startChargeToFull(i);
+		--freeSlots;
+	}
 }
 
 AnsiString Master::reportOne(int sid) const {
@@ -536,4 +546,36 @@ void Master::logSnapshot(double t, const char* tag) {
     timeline.push_back(AnsiString("t=") + f2(t,3) + "  STATE " + AnsiString(tag));
     timeline.push_back(stateLine());
 }
+
+int Master::needEPForHead(int sid) const {
+    const Sensor* s = (*sensors)[sid];
+    // 現在先用固定成本 r_tx；未來若要「跟 ST 成本」，
+    // 你可改成：return std::max(s->r_tx, txCostBase + txCostPerSec * E[ST]);
+    return s->r_tx;
+}
+
+void Master::startChargeToFull(int sid) {
+    Sensor* s = (*sensors)[sid];
+    if (!s || charging[sid]) return;
+    if (s->charge_rate <= 0) return;
+    if (s->energy >= s->E_cap) return;
+
+    int need = s->E_cap - s->energy;
+    if (need < 1) need = 1;
+    double tchg = need / std::max(s->charge_rate, 1e-9);
+    if (tchg <= EPS) tchg = EPS;
+
+    charging[sid]   = true;
+    chargeActive++;
+    pendCharge[sid] = need;
+
+    chargeStartT[sid] = now;
+    chargeEndT[sid]   = now + tchg;
+
+    logChargeStart(now, sid, need, chargeActive, (maxChargingSlots<=0 ? -1 : maxChargingSlots));
+    logSnapshot(now, "after CHARGE_START");
+
+    felPush(now + tchg, EV_CHARGE_END, sid);
+}
+
 
