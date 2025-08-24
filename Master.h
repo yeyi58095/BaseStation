@@ -48,6 +48,9 @@ public:
     std::vector<bool> charging;     // per-sid "is charging?"
     std::vector<int>  pendCharge;   // pending EP units to add on CHARGE_END
 
+
+	std::vector<double> chargeStartT;  // charging start time
+	std::vector<double> chargeEndT;    // charging end time (for reference)
     // priority weights
     double dpCoef; // weight for queue length
     double epCoef; // weight for energy
@@ -59,7 +62,7 @@ public:
 
     // HAP stats
     double busySumTx;       // integral of TX busy (0/1)
-    double chargeCountInt;  // integral of "how many charging in parallel"
+	double chargeCountInt;  // integral of "how many charging in parallel"
 
     // traces for plots
     bool recordTrace;

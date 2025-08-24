@@ -1,6 +1,7 @@
 ﻿#include "Master.h"
 #include "Sensor.h"
 
+#include <algorithm>
 #include <System.SysUtils.hpp>   // FloatToStrF, IntToStr
 #include <System.Classes.hpp>    // TStringList
 
@@ -41,7 +42,10 @@ void Master::setSensors(std::vector<Sensor*>* v) {
     arrivals.assign(N, 0);
 
     charging.assign(N, false);
-    pendCharge.assign(N, 0);
+	pendCharge.assign(N, 0);
+
+	chargeStartT.assign(N, 0.0);    //  新增
+	chargeEndT.assign(N, 0.0);      //  新增
 
     busySumTx = 0.0;
     chargeActive = 0;
@@ -76,7 +80,10 @@ void Master::reset() {
     const int N = (sensors ? (int)sensors->size() : 0);
     for (int i=0;i<N;++i) {
         sumQ[i] = 0.0; served[i] = 0; arrivals[i] = 0;
-        charging[i] = false; pendCharge[i] = 0;
+		charging[i] = false; pendCharge[i] = 0;
+
+		chargeStartT[i] = 0.0;              // 新增
+		chargeEndT[i]   = 0.0;
         if (recordTrace) {
             traceT[i].clear();
             traceQ[i].clear();
@@ -87,7 +94,7 @@ void Master::reset() {
     }
 
     traceT_all.clear(); traceQ_all.clear(); traceMeanQ_all.clear();
-    traceE_all.clear(); traceEavg_all.clear();
+	traceE_all.clear(); traceEavg_all.clear();
 
     // 清感測器的動態狀態（保留 UI 設定）
     for (int i=0;i<N;++i) {
@@ -174,22 +181,24 @@ void Master::run() {
             break;
         }
 
-        case EV_CHARGE_END: {
-            // finish one charging session
-            if (sid >= 0 && sid < (int)pendCharge.size()) {
-                Sensor* s = (*sensors)[sid];
+		case EV_CHARGE_END: {
+			if (sid >= 0 && sid < (int)pendCharge.size()) {
+				Sensor* s = (*sensors)[sid];
 
-                // logger（先算加完後的值給 log）
-                logChargeEnd(now, sid, pendCharge[sid], s->energy + pendCharge[sid]);
+				// logger：先用加完後的值給 log
+				logChargeEnd(now, sid, pendCharge[sid], s->energy + pendCharge[sid]);
 
-                s->addEnergy(pendCharge[sid]); // add integer EP
-                pendCharge[sid] = 0;
-                if (charging[sid]) { charging[sid] = false; chargeActive--; }
-            }
-            // after charge, try schedule
-            felPush(now + EPS, EV_HAP_POLL, -1);
-            break;
-        }
+				s->addEnergy(pendCharge[sid]); // 實際加 EP（整數）
+				pendCharge[sid] = 0;
+
+				if (charging[sid]) { charging[sid] = false; chargeActive--; }
+
+				chargeStartT[sid] = 0.0;       // ★ 清掉區段
+				chargeEndT[sid]   = 0.0;
+			}
+			felPush(now + EPS, EV_HAP_POLL, -1);
+			break;
+		}
 
         case EV_HAP_POLL: {
             scheduleIfIdle();
@@ -244,10 +253,17 @@ void Master::accumulate() {
             double meanQ = (now > 0) ? (sumQ[i] / now) : 0.0;
             traceMeanQ[i].push_back(meanQ);
 
-            // 每 sensor 的 EP 與門檻
-            traceE[i].push_back( (double)s->energy );
-            traceRtx[i].push_back( (double)s->r_tx );
-        }
+			// 每 sensor 的 EP 與門檻
+			double epVis = (double)s->energy;
+            if (charging[i]) {
+                double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
+                if (prog < 0) prog = 0;
+                if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
+                epVis += prog;
+            }
+			traceE[i].push_back(epVis);
+			traceRtx[i].push_back( (double)s->r_tx );
+		}
     }
 
     // HAP 忙碌度（TX）與平行充電數
@@ -262,10 +278,20 @@ void Master::accumulate() {
         for (int i=0;i<N;++i) sumQtot += sumQ[i];
         traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
 
-        double Esum = 0.0;
-        for (int i=0;i<N;++i) Esum += (double)(*sensors)[i]->energy;
-        traceE_all.push_back(Esum);
-        traceEavg_all.push_back( (N>0)? (Esum / N) : 0.0 );
+		double EsumVis = 0.0;
+        for (int i=0;i<N;++i) {
+            Sensor* s = (*sensors)[i];
+            double epVis = (double)s->energy;
+            if (charging[i]) {
+				double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
+                if (prog < 0) prog = 0;
+                if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
+                epVis += prog;
+			}
+            EsumVis += epVis;
+        }
+		traceE_all.push_back(EsumVis);
+		traceEavg_all.push_back( (N>0)? (EsumVis  / N) : 0.0 );
     }
 
     prev = now;
@@ -289,45 +315,46 @@ void Master::scheduleIfIdle() {
         if (pickTX >= 0) {
             Sensor* s = (*sensors)[pickTX];
             double st = s->startTx(); if (st <= EPS) st = EPS;
-            int pid = s->currentServingId();     // 這次送哪顆封包
+            int pid = s->currentServingId();
             hapTxBusy = true; hapTxSid = pickTX;
-
-            // log: 開始傳（把扣能前的 EP 顯示在箭頭左側）
             logStartTx(now, pickTX, pid, st, s->energy + s->r_tx);
-
             felPush(now + switchover + st, EV_TX_DONE, pickTX);
         }
     }
 
-    // (B) Charging pipeline: allow parallel charging up to slots
+    // (B) Charging pipeline (FDM):
+    //     只要 sensor 有在運作（q>0 或 serving），且電池未滿，就持續充電
     int freeSlots = (maxChargingSlots <= 0)
                   ? 0x3fffffff
                   : (maxChargingSlots - chargeActive);
+
     for (int i=0; i<N && freeSlots > 0; ++i) {
         Sensor* s = (*sensors)[i];
-        if ((int)s->q.size() <= 0) continue;     // only charge if we have data to send
-        if (s->energy >= s->r_tx) continue;      // already enough
-        if (s->charge_rate <= 0) continue;       // cannot charge
-        if (charging[i]) continue;               // already charging
 
-        // 充到上限（你也可以改成充 K 包）
-        int target = s->E_cap;
-        int need   = target - s->energy;         // integer deficit
+        if (s->charge_rate <= 0) continue;         // 不能充
+        if (charging[i])       continue;           // 已在充
+        if ((int)s->q.size() <= 0 && !s->serving) continue; // 沒在運作就先不充
+        if (s->energy >= s->E_cap) continue;       // 已滿
+
+        int need = s->E_cap - s->energy;           // 本輪補到滿
         if (need < 1) need = 1;
 
         double tchg = need / std::max(s->charge_rate, 1e-9);
         if (tchg <= EPS) tchg = EPS;
 
-        charging[i] = true;
+        charging[i]   = true;
         chargeActive++;
         pendCharge[i] = need;
 
-        // log: 開始充電
+        // ★ 紀錄區段，畫斜坡會用到
+        chargeStartT[i] = now;
+        chargeEndT[i]   = now + tchg;
+
         logChargeStart(now, i, need, chargeActive,
                        (maxChargingSlots<=0 ? -1 : maxChargingSlots));
 
         felPush(now + tchg, EV_CHARGE_END, i);
-        freeSlots--;
+        --freeSlots;
     }
 }
 
