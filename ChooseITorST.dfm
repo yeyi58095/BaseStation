@@ -88,7 +88,7 @@ object Chooser: TChooser
     Left = 295
     Top = 76
     Width = 45
-    Height = 12
+    Height = 13
     Caption = 'CostBase'
   end
   object CostPerSec: TLabel
