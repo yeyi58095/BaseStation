@@ -211,45 +211,39 @@ void Master::run() {
 			if (sid < 0 || sid >= (int)sensors->size()) break;
 			Sensor* s = (*sensors)[sid];
 			if (!s) break;
+			if (!charging[sid]) break; // 被外部中止就不動
 
-			if (!charging[sid]) {
-				// 有可能外部被中止；安全起見什麼也不做
-				break;
-			}
-
-			// +1 EP（立刻對真實 energy 生效）
 			int before = s->energy;
-			s->addEnergy(1);
-			// （可選）偶爾記一筆 tick log，避免太爆
-			// if (s->energy == s->E_cap || (s->energy % 10) == 0)
-			//     timeline.push_back( ... " CHARGE_TICK EP=" + IntToStr(s->energy) );
+			s->addEnergy(1);           // 真實 energy 直接 +1（已夾 cap）
 
 			if (s->energy >= s->E_cap) {
-				// 充滿 → 結束這個slot
-				int added = s->E_cap - (before - 0); // 只是示意；你也可以額外存一個 chargeAdded[sid] 來累計
-				logChargeEnd(now, sid, added /*或 pendCharge[sid] 也行*/, s->energy);
-
+				// 滿了 → 結束 slot
+				logChargeEnd(now, sid, s->E_cap - before, s->energy);
 				charging[sid] = false;
 				if (chargeActive > 0) chargeActive--;
-				pendCharge[sid] = 0;
-				chargeStartT[sid] = 0.0;
-				chargeEndT[sid]   = 0.0;
+				pendCharge[sid]  = 0;
+				chargeStartT[sid]= 0.0;
+				chargeEndT[sid]  = 0.0;
 
-				// 讓排程有機會立刻選TX
 				felPush(now + EPS, EV_HAP_POLL, -1);
 				logSnapshot(now, "after CHARGE_FULL");
 			} else {
-				// 還沒滿 → 繼續下一個 +1
+				// 還沒滿 → 排下一個 +1EP，並重置斜坡起點（只畫下一格）
+				chargeStartT[sid] = now;
+				double capRemain = std::max(0, s->E_cap - s->energy);
+				pendCharge[sid]  = (capRemain > 1 ? 1 : (int)capRemain);
+
 				double dt = 1.0 / std::max(s->charge_rate, 1e-9);
 				if (dt <= EPS) dt = EPS;
 				felPush(now + dt, EV_CHARGE_STEP, sid);
 
-				// 讓排程看看：也許現在已經 >= r_tx 可以開傳了
+				// 也讓排程看看是不是已經 >= r_tx 可以開傳
 				felPush(now + EPS, EV_HAP_POLL, -1);
 				logSnapshot(now, "after CHARGE_TICK");
 			}
 			break;
 		}
+
 
 
 		case EV_HAP_POLL: {
@@ -274,32 +268,32 @@ void Master::felClear() {
 }
 
 void Master::felPush(double t, EventType tp, int sid) {
-    EvNode* n = new EvNode(t, tp, sid);
-    EvNode* cur = felHead;
-    while (cur->next && cur->next->t <= t) cur = cur->next;
-    n->next = cur->next; cur->next = n;
+	EvNode* n = new EvNode(t, tp, sid);
+	EvNode* cur = felHead;
+	while (cur->next && cur->next->t <= t) cur = cur->next;
+	n->next = cur->next; cur->next = n;
 }
 
 bool Master::felPop(double& t, EventType& tp, int& sid) {
-    EvNode* n = felHead->next;
-    if (!n) return false;
-    felHead->next = n->next;
-    t = n->t; tp = n->tp; sid = n->sid;
-    delete n;
-    return true;
+	EvNode* n = felHead->next;
+	if (!n) return false;
+	felHead->next = n->next;
+	t = n->t; tp = n->tp; sid = n->sid;
+	delete n;
+	return true;
 }
 
 void Master::accumulate() {
-    double dt = now - prev;
+	double dt = now - prev;
     if (dt <= 0) { prev = now; return; }
 
     int N = (sensors ? (int)sensors->size() : 0);
     int totalQ = 0;
 
-    for (int i=0;i<N;++i) {
-        Sensor* s = (*sensors)[i];
-        int qlen = (int)s->q.size();
-        totalQ += qlen;
+	for (int i=0;i<N;++i) {
+		Sensor* s = (*sensors)[i];
+		int qlen = (int)s->q.size();
+		totalQ += qlen;
         sumQ[i] += dt * qlen;
 
         if (recordTrace) {
@@ -309,46 +303,56 @@ void Master::accumulate() {
             traceMeanQ[i].push_back(meanQ);
 
             // EP with charging slope
-            double epVis = (double)s->energy;
-            if (charging[i]) {
-                double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
-                if (prog < 0) prog = 0;
-                if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
-                epVis += prog;
-            }
-            traceE[i].push_back(epVis);
+			double epVis = (double)s->energy;
+			if (charging[i]) {
+				double capRemain = std::max(0, s->E_cap - s->energy); // 距離滿還能加多少
+				if (capRemain > 0) {
+					double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
+					if (prog > 1.0) prog = 1.0;            // 只畫下一格 (+1EP) 的進度
+					if (prog > capRemain) prog = capRemain; // 接近滿時，格子變小
+					epVis += prog;
+				}
+			}
+			if (epVis > s->E_cap) epVis = s->E_cap;        // 視覺值也不要超過上限
+			traceE[i].push_back(epVis);
+
             traceRtx[i].push_back( (double)s->r_tx );
-        }
+		}
     }
 
     busySumTx      += dt * (hapTxBusy ? 1 : 0);
     chargeCountInt += dt * (double)chargeActive;
 
-    if (recordTrace) {
-        traceT_all.push_back(now);
-        traceQ_all.push_back(totalQ);
+	if (recordTrace) {
+		traceT_all.push_back(now);
+		traceQ_all.push_back(totalQ);
 
-        double sumQtot = 0.0;
-        for (int i=0;i<N;++i) sumQtot += sumQ[i];
-        traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
+		double sumQtot = 0.0;
+		for (int i=0;i<N;++i) sumQtot += sumQ[i];
+		traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
 
-        double EsumVis = 0.0;
-        for (int i=0;i<N;++i) {
-            Sensor* s = (*sensors)[i];
-            double epVis = (double)s->energy;
-            if (charging[i]) {
-                double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
-                if (prog < 0) prog = 0;
-                if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
-                epVis += prog;
-            }
-            EsumVis += epVis;
-        }
-        traceE_all.push_back(EsumVis);
-        traceEavg_all.push_back( (N>0)? (EsumVis  / N) : 0.0 );
-    }
+	double EsumVis = 0.0;
+	for (int i=0;i<N;++i) {
+		Sensor* s = (*sensors)[i];
+		double epVis = (double)s->energy;
+		if (charging[i]) {
+			double capRemain = std::max(0, s->E_cap - s->energy);
+			if (capRemain > 0) {
+				double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
+				if (prog > 1.0) prog = 1.0;
+				if (prog > capRemain) prog = capRemain;
+				epVis += prog;
+			}
+		}
+		if (epVis > s->E_cap) epVis = s->E_cap;
+		EsumVis += epVis;
+	}
+	traceE_all.push_back(EsumVis);
+	traceEavg_all.push_back( (N>0)? (EsumVis / N) : 0.0 );
 
-    prev = now;
+	}
+
+	prev = now;
 }
 
 void Master::scheduleIfIdle() {
@@ -601,6 +605,7 @@ int Master::needEPForHead(int sid) const {
     return s->r_tx;
 }
 
+// Master.cpp
 void Master::startChargeToFull(int sid) {
     Sensor* s = (*sensors)[sid];
     if (!s || charging[sid]) return;
@@ -609,16 +614,19 @@ void Master::startChargeToFull(int sid) {
 
     charging[sid]   = true;
     chargeActive++;
-    pendCharge[sid] = s->E_cap - s->energy;  // 只拿來記錄/log起充時的需求量
 
-    chargeStartT[sid] = now;
-    chargeEndT[sid]   = 0.0; // 這個欄位變成可選
+    // 只用來畫「下一格」斜坡（最多 1EP；臨界時可能 <1）
+    double capRemain = std::max(0, s->E_cap - s->energy);
+    pendCharge[sid]  = (capRemain > 1 ? 1 : (int)capRemain);
 
-    logChargeStart(now, sid, pendCharge[sid], chargeActive,
-                   (maxChargingSlots<=0 ? -1 : maxChargingSlots));
+    chargeStartT[sid] = now;      // 斜坡從現在開始
+    chargeEndT[sid]   = 0.0;
+
+    logChargeStart(now, sid, s->E_cap - s->energy,   // 給人看的 need=距滿差距
+                   chargeActive, (maxChargingSlots<=0 ? -1 : maxChargingSlots));
     logSnapshot(now, "after CHARGE_START");
 
-    // NEW: 改成步進式，每隔 dt = 1/charge_rate +1 EP
+    // 排第一個 +1EP
     double dt = 1.0 / std::max(s->charge_rate, 1e-9);
     if (dt <= EPS) dt = EPS;
     felPush(now + dt, EV_CHARGE_STEP, sid);
