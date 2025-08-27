@@ -171,7 +171,7 @@ void Master::run() {
 		}
 
 		case EV_CHARGE_END: {
-			if (sid >= 0 && sid < (int)pendCharge.size()) {
+			/*if (sid >= 0 && sid < (int)pendCharge.size()) {
 				Sensor* s = (*sensors)[sid];
 
 				// 先記 log（用加完後的值給 log），再真的加
@@ -203,7 +203,7 @@ void Master::run() {
 				}
 			}
 			felPush(now + EPS, EV_HAP_POLL, -1);
-			logSnapshot(now, "after CHARGE_END");
+			logSnapshot(now, "after CHARGE_END");  */
 			break;
 		}
 
@@ -626,9 +626,9 @@ void Master::startChargeToFull(int sid) {
                    chargeActive, (maxChargingSlots<=0 ? -1 : maxChargingSlots));
     logSnapshot(now, "after CHARGE_START");
 
-    // 排第一個 +1EP
-    double dt = 1.0 / std::max(s->charge_rate, 1e-9);
-    if (dt <= EPS) dt = EPS;
+	// 排第一個 +1EP
+	double dt = 1.0 / std::max(s->charge_rate, 1e-9);
+	if (dt <= EPS) dt = EPS;
     felPush(now + dt, EV_CHARGE_STEP, sid);
 }
 

@@ -40,3 +40,4 @@ __recovery/
 # ---- OS/Tooling junk ----
 .DS_Store
 Thumbs.db
+!Win32/Debug/Project2.exe
