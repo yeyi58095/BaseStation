@@ -128,41 +128,57 @@ void Master::run() {
     }
     felPush(now + EPS, EV_HAP_POLL, -1);
 
-    double t; EventType tp; int sid;
-    while (felPop(t, tp, sid)) {
-        if (t > endTime) { now = endTime; accumulate(); break; }
-        now = t;
-        accumulate();
+	double t; EventType tp; int sid;
+	//felPop is call-by-reference function, so that the parameter t, tp, sid
+	// would be change after felPop
+	// it will be the next time, next event type , and the operated sensor id
+	while (felPop(t, tp, sid)) {
+		// if over-due, the program had finished
+		if (t > endTime) { now = endTime; accumulate(); break; }
 
-        switch (tp) {
-        case EV_DP_ARRIVAL: {
-            Sensor* s = (*sensors)[sid];
-            s->enqueueArrival();
+		// update the the current time as the previous next time
+		now = t;
 
-            int pid = s->lastEnqId();
-            if (pid >= 0) {
-                arrivedIds[sid].push_back(pid);
-                if ((int)arrivedIds[sid].size() > keepLogIds) arrivedIds[sid].erase(arrivedIds[sid].begin());
-                logArrival(now, sid, pid, (int)s->q.size(), s->energy);
-            }
-            arrivals[sid] += 1;
+		// accumulate
+		accumulate();
+
+		// operate different function on with different event type
+		switch (tp) {
+
+		// As Data Packet Arrival
+		case EV_DP_ARRIVAL: {
+			Sensor* s = (*sensors)[sid];
+			s->enqueueArrival();
+			// the funciton will add a new packet (struct) into the deque while the volume of deque is available
+			// with setting its packet id, its servcie, and how much energy(ep) will it cost
+
+			// the following part is for printing log
+			int pid = s->lastEnqId(); // it just get the id lasest pushed, if is empty, will return -1
+			if (pid >= 0) { //whetheter it is empty or not
+				arrivedIds[sid].push_back(pid);   // push this packet id to corresponding sensor id
+				if ((int)arrivedIds[sid].size() > keepLogIds) arrivedIds[sid].erase(arrivedIds[sid].begin());
+				//avoiding out of memory, cutting the showed information if reached the max volume
+				logArrival(now, sid, pid, (int)s->q.size(), s->energy);
+			}
+			arrivals[sid] += 1;   // arrivals (A for each sensor) +1
 
             // next arrival
-            { double dt = s->sampleIT(); if (dt <= EPS) dt = EPS;
-              felPush(now + dt, EV_DP_ARRIVAL, sid); }
+			{ double dt = s->sampleIT(); if (dt <= EPS) dt = EPS; // setting the time interval that next event will arrival
+			  felPush(now + dt, EV_DP_ARRIVAL, sid); }    // pushing that time, event, and id to fel
 
-            felPush(now + EPS, EV_HAP_POLL, -1);
-            logSnapshot(now, "after ARRIVAL");
-            break;
-        }
+			felPush(now + EPS, EV_HAP_POLL, -1);    // push the polling event the fel at the unit time
+													// so that it will polling or called updating each moment
+			logSnapshot(now, "after ARRIVAL");
+			break;
+		}
 
-        case EV_TX_DONE: {
-            Sensor* s = (*sensors)[sid];
-            int pid = s->currentServingId();
-            logEndTx(now, sid, pid, (int)s->q.size(), s->energy);
+		case EV_TX_DONE: {
+			Sensor* s = (*sensors)[sid];
+			int pid = s->currentServingId();
+			logEndTx(now, sid, pid, (int)s->q.size(), s->energy);
 
             s->finishTx();
-            served[sid] += 1;
+			served[sid] += 1;
 
             servedIds[sid].push_back(pid);
             if ((int)servedIds[sid].size() > keepLogIds) servedIds[sid].erase(servedIds[sid].begin());

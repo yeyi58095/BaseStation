@@ -56,24 +56,7 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	this->chkQ->Checked = true;
 	this->ckbMean->Checked = true;
 }
-//---------------------------------------------------------------------------
-/*void __fastcall TForm5::Button1Click(TObject *Sender)
-{
-	Person* p = new Person(L"Ji", 12);
 
-	double sum = 0;
-	int n = 100000;
-
-	for(int i = 0; i < n; i++){
-		sum += rv::exponential(1);
-	}
-	double result = (double) sum / (double) n;
-
-	ShowMessage(result);
-
-
-	delete p;
-}  */
 //---------------------------------------------------------------------------
 
 void __fastcall TForm5::sensorAmountEditChange(TObject *Sender)
@@ -331,6 +314,7 @@ void __fastcall TForm5::ckbEPClick(TObject *Sender)
 	Form5->ckbRtx->Checked = false;}
 }
 //---------------------------------------------------------------------------
+
 
 
 

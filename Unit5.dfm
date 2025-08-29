@@ -65,8 +65,8 @@ object Form5: TForm5
   object log: TLabel
     Left = 782
     Top = 24
-    Width = 35
-    Height = 18
+    Width = 3
+    Height = 13
   end
   object sensorAmountEdit: TEdit
     Left = 120
