@@ -11,6 +11,14 @@ static AnsiString f2(double x, int prec=3) {
     return FloatToStrF(x, ffFixed, 7, prec);
 }
 
+inline double sampleChargeStepDt(double rate, double EPS) {
+    if (rate <= 0) return 0.0;
+    double dt = rv::exponential(rate);   // 參數是 λ（rate），平均 1/λ
+    if (dt <= EPS) dt = EPS;
+    return dt;
+}
+
+
 double Master::EPS = 1e-9;
 
 Master::Master()
@@ -42,6 +50,7 @@ void Master::setSensors(std::vector<Sensor*>* v) {
 	arrivals.assign(N, 0);
 	busySidInt.assign(N, 0.0);
 
+	chargeNextDt.assign(N, 0.0);
 
     charging.assign(N, false);
     pendCharge.assign(N, 0);
@@ -83,6 +92,7 @@ void Master::reset() {
 		chargeStartT[i] = 0.0; chargeEndT[i] = 0.0;
 		busySidInt[i] = 0.0;
 
+		chargeNextDt[i] = 0.0;
 
         if (recordTrace) {
             traceT[i].clear();
@@ -172,21 +182,21 @@ void Master::run() {
 			break;
 		}
 
-		case EV_TX_DONE: {
+		case EV_TX_DONE: {    // hap serviced done time
 			Sensor* s = (*sensors)[sid];
-			int pid = s->currentServingId();
+			int pid = s->currentServingId();    // get the servicing id
 			logEndTx(now, sid, pid, (int)s->q.size(), s->energy);
 
-            s->finishTx();
-			served[sid] += 1;
+			s->finishTx();  // release the space for servicing other packet
+			served[sid] += 1;     // the amount of serviced packet +1
 
-            servedIds[sid].push_back(pid);
-            if ((int)servedIds[sid].size() > keepLogIds) servedIds[sid].erase(servedIds[sid].begin());
+			servedIds[sid].push_back(pid);
+			if ((int)servedIds[sid].size() > keepLogIds) servedIds[sid].erase(servedIds[sid].begin());
 
-            hapTxBusy = false; hapTxSid = -1;
+			hapTxBusy = false; hapTxSid = -1;   // label it as it is available to service
 
-            felPush(now + EPS, EV_HAP_POLL, -1);
-            logSnapshot(now, "after END_TX");
+			felPush(now + EPS, EV_HAP_POLL, -1);  //
+			logSnapshot(now, "after END_TX");
 			break;
 		}
 
@@ -244,6 +254,7 @@ void Master::run() {
 				pendCharge[sid]  = 0;
 				chargeStartT[sid]= 0.0;
 				chargeEndT[sid]  = 0.0;
+				chargeNextDt[sid]= 0.0;
 
 				felPush(now + EPS, EV_HAP_POLL, -1);
 				logSnapshot(now, "after CHARGE_FULL");
@@ -253,15 +264,18 @@ void Master::run() {
 				double capRemain = std::max(0, s->E_cap - s->energy);
 				pendCharge[sid]  = (capRemain > 1 ? 1 : (int)capRemain);
 
-				double dt = 1.0 / std::max(s->charge_rate, 1e-9);
-				if (dt <= EPS) dt = EPS;
+				double dt = sampleChargeStepDt(s->charge_rate, EPS);
+				chargeStartT[sid] = now;        // 斜坡起點重設
+				chargeNextDt[sid] = dt;         // 這一顆 EP 的實際等待時間
 				felPush(now + dt, EV_CHARGE_STEP, sid);
+
 
 				// 也讓排程看看是不是已經 >= r_tx 可以開傳
 				felPush(now + EPS, EV_HAP_POLL, -1);
 				logSnapshot(now, "after CHARGE_TICK");
 			}
 			break;
+
 		}
 
 
@@ -305,7 +319,7 @@ bool Master::felPop(double& t, EventType& tp, int& sid) {
 
 void Master::accumulate() {
 	double dt = now - prev;
-    if (dt <= 0) { prev = now; return; }
+	if (dt <= 0) { prev = now; return; }
 
     int N = (sensors ? (int)sensors->size() : 0);
     int totalQ = 0;
@@ -325,15 +339,17 @@ void Master::accumulate() {
             // EP with charging slope
 			double epVis = (double)s->energy;
 			if (charging[i]) {
-				double capRemain = std::max(0, s->E_cap - s->energy); // 距離滿還能加多少
+				double capRemain = std::max(0, s->E_cap - s->energy);
 				if (capRemain > 0) {
-					double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
-					if (prog > 1.0) prog = 1.0;            // 只畫下一格 (+1EP) 的進度
-					if (prog > capRemain) prog = capRemain; // 接近滿時，格子變小
+					double denom = (chargeNextDt[i] > EPS ? chargeNextDt[i] : 1.0); // 避免除 0
+					double prog  = (now - chargeStartT[i]) / denom;  // 0..1 的線性進度，對應「這一顆 EP」的實際等待時間
+					if (prog < 0) prog = 0;
+					if (prog > 1.0) prog = 1.0;
+					if (prog > capRemain) prog = capRemain;          // 接近滿時，格子變小
 					epVis += prog;
 				}
 			}
-			if (epVis > s->E_cap) epVis = s->E_cap;        // 視覺值也不要超過上限
+			if (epVis > s->E_cap) epVis = s->E_cap;
 			traceE[i].push_back(epVis);
 
             traceRtx[i].push_back( (double)s->r_tx );
@@ -362,11 +378,14 @@ void Master::accumulate() {
 		Sensor* s = (*sensors)[i];
 		double epVis = (double)s->energy;
 		if (charging[i]) {
-			double capRemain = std::max(0, s->E_cap - s->energy);
+			double capRemain = std::max(0, s->E_cap - s->energy); // 距離滿還能加多少
 			if (capRemain > 0) {
-				double prog = (now - chargeStartT[i]) * std::max(s->charge_rate, 1e-9);
+				// 針對「當前這一格」用實際抽到的等待時間 chargeNextDt[i]
+				double denom = (chargeNextDt[i] > EPS ? chargeNextDt[i] : 1.0);
+				double prog  = (now - chargeStartT[i]) / denom;   // 0..1 線性進度
+				if (prog < 0)   prog = 0;
 				if (prog > 1.0) prog = 1.0;
-				if (prog > capRemain) prog = capRemain;
+				if (prog > capRemain) prog = capRemain;           // 接近滿，最後一格 < 1
 				epVis += prog;
 			}
 		}
@@ -375,27 +394,30 @@ void Master::accumulate() {
 	}
 	traceE_all.push_back(EsumVis);
 	traceEavg_all.push_back( (N>0)? (EsumVis / N) : 0.0 );
-
 	}
 
 	prev = now;
 }
 
-void Master::scheduleIfIdle() {
-    if (!sensors || sensors->empty()) return;
-    const int N = (int)sensors->size();
+void Master::scheduleIfIdle() {      // the polling part
+	if (!sensors || sensors->empty()) return;
+	const int N = (int)sensors->size();
 
-    // (A) TX: if idle, pick one
-    if (!hapTxBusy) {
-        int pickTX = -1; double bestScore = -1.0;
-        for (int i=0;i<N; ++i) {
-            Sensor* s = (*sensors)[i];
-            if (!s->canTransmit()) continue;
-            double score = dpCoef * (double)s->q.size()
-                         * epCoef * (double)s->energy;
-            if (score > bestScore) { bestScore = score; pickTX = i; }
-        }
-		if (pickTX >= 0) {
+	// (A) TX: if idle, pick one
+
+	if (!hapTxBusy) {
+		int pickTX = -1; double bestScore = -1.0;
+		for (int i=0;i<N; ++i) {     // grab with priority
+			Sensor* s = (*sensors)[i];
+			if (!s->canTransmit()) continue;
+			// in this part, it will check whether the energy in this sensor is enough to transmit the head packet
+			// so that, the grabbed channel is all qualified to transmit,
+			// don't worry for some unexpected condition
+			double score = dpCoef * (double)s->q.size()
+						 * epCoef * (double)s->energy;
+			if (score > bestScore) { bestScore = score; pickTX = i; }
+		}
+		if (pickTX >= 0) {  // if grabbed
 			Sensor* s = (*sensors)[pickTX];
 
 			// peek before startTx() mutates the state
@@ -404,18 +426,22 @@ void Master::scheduleIfIdle() {
 			int    epCost   = s->frontNeedEP();
 			int    epBefore = s->energy;
 
-			double st = s->startTx(); if (st <= EPS) st = st_need;
+			double st = s->startTx(); // Actually, this part is needed to be modified
+			// this part means the energy will be cost suddenly if there have enough energy
+			// but, in fact, it should be cost steppedly.
+
+			if (st <= EPS) st = st_need;  // if transfer time is less than unit time, set it as unit time
 			hapTxBusy = true; hapTxSid = pickTX;
 
 			logStartTx(now, pickTX, pid, st_need, epBefore, epCost);
 			logSnapshot(now, "after START_TX");
 
-			felPush(now + switchover + st_need, EV_TX_DONE, pickTX);
+			felPush(now + switchover + st_need, EV_TX_DONE, pickTX);  // set tbe finish time, with switchover time added
 		}
 	}
 
 	// (B) Charging pipeline (FDM)
-	int freeSlots = (maxChargingSlots <= 0) ? 0x3fffffff : (maxChargingSlots - chargeActive);
+	int freeSlots = (maxChargingSlots <= 0) ? 0x3fffffff : (maxChargingSlots - chargeActive); // whether more slot is available
 
 	for (int i=0; i<N && freeSlots > 0; ++i) {
 		Sensor* s = (*sensors)[i];
@@ -449,7 +475,7 @@ AnsiString Master::reportOne(int sid) const {
      *   S (=served[i])   : packets successfully transmitted (completed) from sensor i
      *   B                : backlog at end-of-run for sensor i
      *                      = queue length + 1 if being served else 0
-     *
+	 *
      *   sumQ[i]          : time-integral of queue length of sensor i
      *   busySidInt[i]    : time-integral of the {0/1} indicator that sensor i
      *                      is *in service* (i.e., being transmitted by the HAP).
@@ -497,7 +523,7 @@ AnsiString Master::reportOne(int sid) const {
     // Time-averaged metrics
     double Lq_hat  = (T > 0) ? (sumQ[sid] / T) : 0.0;      // mean queue size (waiting only)
 	double lam_off = (T > 0) ? ((double)A / T) : 0.0;      // offered rate
-    double lam_car = (T > 0) ? ((double)S / T) : 0.0;      // carried (throughput)
+	double lam_car = (T > 0) ? ((double)S / T) : 0.0;      // carried (throughput)
     double loss    = (A > 0) ? ((double)D / (double)A) : 0.0;
 
     // Mean waiting time in queue (Little’s law with carried rate)
@@ -545,7 +571,7 @@ AnsiString Master::reportOne(int sid) const {
 AnsiString Master::reportAll() const {
     /*
      * System-wide report (aggregated across all sensors)
-     *
+	 *
      * N                : number of sensors
      * T                : run horizon in seconds (now)
      *
@@ -641,7 +667,7 @@ AnsiString Master::reportAll() const {
 	out += "lambda_off       = " + FloatToStrF(lam_off,  ffFixed, 7, 4) + " = offered arrival rate = A/T \n";
 	out += "lambda_car       = " + FloatToStrF(lam_car,  ffFixed, 7, 4) + "  (= throughput) = S/T \n";
 
-    // Mean waiting time (system)
+	// Mean waiting time (system)
     out += "Wq_all           = " + FloatToStrF(Wq_all,   ffFixed, 7, 4) + "  (Little: Lq_all / lambda_car)\n";
 
 	// HAP & charging utilizations
@@ -736,14 +762,20 @@ AnsiString Master::stateLine() const {
         const Sensor* x = (*sensors)[i];
 
         double epVis = x->energy;
-        if ((size_t)N == charging.size() && charging[i]) {
-            double prog = (now - chargeStartT[i]) * std::max(x->charge_rate, 1e-9);
-            if (prog < 0) prog = 0;
-            if (prog > (double)pendCharge[i]) prog = (double)pendCharge[i];
-            epVis += prog;
-        }
+		if ((size_t)N == charging.size() && charging[i]) {
+			double capRemain = std::max(0, x->E_cap - x->energy);
+			if (capRemain > 0) {
+				double denom = (chargeNextDt[i] > EPS ? chargeNextDt[i] : 1.0);
+				double prog  = (now - chargeStartT[i]) / denom;   // 0..1
+				if (prog < 0)   prog = 0;
+				if (prog > 1.0) prog = 1.0;
+				if (prog > capRemain) prog = capRemain;
+				epVis += prog;
+			}
+		}
 
-        s += "S" + IntToStr(i) + "=" + x->queueToStr();
+
+		s += "S" + IntToStr(i) + "=" + x->queueToStr();
         if (x->serving) s += "(S:" + IntToStr(x->servingId) + ")";
         s += " EP=" + IntToStr(x->energy);
 		if (epVis != x->energy) s += " (" + f2(epVis,3) + ")";
@@ -775,9 +807,10 @@ int Master::needEPForHead(int sid) const {
 }
 
 // Master.cpp
-void Master::startChargeToFull(int sid) {
-    Sensor* s = (*sensors)[sid];
-    if (!s || charging[sid]) return;
+void Master::startChargeToFull(int sid) {  // this funciton will be triggered one time, when it is time to charge
+	// then the run while-loop will only trigger EV_CHARGE_STEP until full
+	Sensor* s = (*sensors)[sid];
+	if (!s || charging[sid]) return;
     if (s->charge_rate <= 0) return;
     if (s->energy >= s->E_cap) return;
 
@@ -785,19 +818,19 @@ void Master::startChargeToFull(int sid) {
     chargeActive++;
 
     // 只用來畫「下一格」斜坡（最多 1EP；臨界時可能 <1）
-    double capRemain = std::max(0, s->E_cap - s->energy);
-    pendCharge[sid]  = (capRemain > 1 ? 1 : (int)capRemain);
+	double capRemain = std::max(0, s->E_cap - s->energy);
+	pendCharge[sid]  = (capRemain > 1 ? 1 : (int)capRemain);
 
     chargeStartT[sid] = now;      // 斜坡從現在開始
     chargeEndT[sid]   = 0.0;
 
     logChargeStart(now, sid, s->E_cap - s->energy,   // 給人看的 need=距滿差距
-                   chargeActive, (maxChargingSlots<=0 ? -1 : maxChargingSlots));
+				   chargeActive, (maxChargingSlots<=0 ? -1 : maxChargingSlots));
     logSnapshot(now, "after CHARGE_START");
 
 	// 排第一個 +1EP
-	double dt = 1.0 / std::max(s->charge_rate, 1e-9);
-	if (dt <= EPS) dt = EPS;
-    felPush(now + dt, EV_CHARGE_STEP, sid);
+	double dt = sampleChargeStepDt(s->charge_rate, EPS);  // the arrival event of ep is also random variable form
+	chargeNextDt[sid] = dt;
+	felPush(now + dt, EV_CHARGE_STEP, sid);
 }
 

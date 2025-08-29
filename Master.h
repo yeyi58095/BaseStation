@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <System.hpp>   // AnsiString
+#include "RandomVar.h"   // 用 rv::exponential()
 
 class Sensor;
 
@@ -48,8 +49,9 @@ public:
     std::vector<bool> charging;
     std::vector<int>  pendCharge;   // planned added EP for current segment
 
-    std::vector<double> chargeStartT;
-    std::vector<double> chargeEndT;
+	std::vector<double> chargeStartT;
+	std::vector<double> chargeEndT;
+	std::vector<double> chargeNextDt;   // 本次 +1EP 的抽樣等待時間（只給視覺用）
 
     // scheduling weights
     double dpCoef;
@@ -73,7 +75,7 @@ public:
     std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;
 
     std::vector< std::vector<double> > traceE;    // EP(t) with charging slope
-    std::vector< std::vector<double> > traceRtx;  // r_tx for plotting
+	std::vector< std::vector<double> > traceRtx;  // r_tx for plotting
     std::vector<double> traceE_all;               // sum EP
     std::vector<double> traceEavg_all;            // avg EP
 
