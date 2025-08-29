@@ -18,6 +18,11 @@ Sensor::Sensor(int id)
 {
 }
 
+// 盢疊翴计Αて㏕﹚计锣Θ AnsiString
+static AnsiString FixStr(double v, int prec = 3) {
+    return AnsiString(FloatToStrF(v, ffFixed, 7, prec));
+}
+
 void Sensor::setIT(int method, double p1, double p2) { ITdistri = method; ITpara1 = p1; ITpara2 = p2; }
 void Sensor::setST(int method, double p1, double p2) { STdistri = method; STpara1 = p1; STpara2 = p2; }
 
@@ -87,34 +92,80 @@ void Sensor::addEnergy(int units) {
 }
 
 AnsiString Sensor::toString() const {
-    AnsiString msg;
-    msg += "Sensor: " + IntToStr(id+1) + "\n";
+    AnsiString out;
 
-    msg += "IT: ";
+    out += "Sensor " + IntToStr(id + 1) + "  [static config]\n";
+
+    // === IT (Interarrival Time) ===
+    out += "IT RV: ";
     switch (ITdistri) {
-        case DIST_NORMAL:      msg += "mean=" + FloatToStrF(ITpara1, ffFixed, 7, 3) + ", stddev=" + FloatToStrF(ITpara2, ffFixed, 7, 3); break;
-        case DIST_EXPONENTIAL: msg += "lambda=" + FloatToStrF(ITpara1, ffFixed, 7, 3); break;
-        case DIST_UNIFORM:     msg += "a=" + FloatToStrF(ITpara1, ffFixed, 7, 3) + ", b=" + FloatToStrF(ITpara2, ffFixed, 7, 3); break;
-        default: msg += "(unknown)"; break;
+        case DIST_NORMAL:
+            out += "Normal(mean=" + FixStr(ITpara1) +
+                   ", stddev="    + FixStr(ITpara2) + ")";
+            break;
+        case DIST_EXPONENTIAL: {
+            double rate = ITpara1;
+            AnsiString meanStr;
+            if (rate > 0.0) meanStr = FixStr(1.0 / rate);
+            else            meanStr = "inf";
+            out += "Exponential(rate=" + FixStr(rate) +
+                   ", mean=" + meanStr + ")";
+            break;
+        }
+        case DIST_UNIFORM:
+            out += "Uniform(a=" + FixStr(ITpara1) +
+                   ", b="       + FixStr(ITpara2) + ")";
+            break;
+        default:
+            out += "(unknown)";
+            break;
     }
+    out += "\n";
 
-    msg += "\nST: ";
+    // === ST (Service Time / TX time per packet) ===
+    out += "ST RV: ";
     switch (STdistri) {
-        case DIST_NORMAL:      msg += "mean=" + FloatToStrF(STpara1, ffFixed, 7, 3) + ", stddev=" + FloatToStrF(STpara2, ffFixed, 7, 3); break;
-        case DIST_EXPONENTIAL: msg += "mu=" + FloatToStrF(STpara1, ffFixed, 7, 3); break;
-        case DIST_UNIFORM:     msg += "a=" + FloatToStrF(STpara1, ffFixed, 7, 3) + ", b=" + FloatToStrF(STpara2, ffFixed, 7, 3); break;
-        default: msg += "(unknown)"; break;
+        case DIST_NORMAL:
+            out += "Normal(mean=" + FixStr(STpara1) +
+                   ", stddev="    + FixStr(STpara2) + ")";
+            break;
+        case DIST_EXPONENTIAL: {
+            double rate = STpara1;
+            AnsiString meanStr;
+            if (rate > 0.0) meanStr = FixStr(1.0 / rate);
+            else            meanStr = "inf";
+            out += "Exponential(rate=" + FixStr(rate) +
+                   ", mean=" + meanStr + ")";
+            break;
+        }
+        case DIST_UNIFORM:
+            out += "Uniform(a=" + FixStr(STpara1) +
+                   ", b="       + FixStr(STpara2) + ")";
+            break;
+        default:
+            out += "(unknown)";
+            break;
     }
+    out += "\n";
 
-    msg += "\nDP: Qmax=" + IntToStr(this->Qmax) +
-           "\nEP: energy=" + IntToStr(energy) +
-           ", cap=" + IntToStr(E_cap) +
-           ", r_tx=" + IntToStr(r_tx) +
-           ", charge_rate=" + FloatToStrF(charge_rate, ffFixed, 7, 3) + "\n";
+    // === DP (data queue) ===
+    AnsiString qmaxStr;
+    if (Qmax < 0) qmaxStr = "inf";
+    else          qmaxStr = IntToStr(Qmax);
+    out += "DP: Qmax=" + qmaxStr +
+		   ", preload=" + IntToStr(init_preload) + "\n";
 
-    msg += "EP-cost: base=" + FloatToStrF(txCostBase, ffFixed, 7, 3) +
-           ", perSec=" + FloatToStrF(txCostPerSec, ffFixed, 7, 3) + "\n";
-    return msg;
+    // === EP (energy params) ===  “繰篈把计
+    out += "EP: cap=" + AnsiString(IntToStr(E_cap)) +
+           ", r_tx=" + AnsiString(IntToStr(r_tx)) +
+           ", charge_rate=" + FixStr(charge_rate) + " (EP/sec)\n";
+
+    // === EP-cost model ===
+    out += "EP-cost: base=" + FixStr(txCostBase) +
+           ", perSec=" + FixStr(txCostPerSec) +
+		   "  \nneedEP = ceil(base + perSec * ST), min=1\n";
+
+    return out;
 }
 
 AnsiString Sensor::queueToStr() const {

@@ -26,6 +26,7 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 {
 	this->runned = false;
 	this->Dubug->Caption = "Run";
+	this->DebugLabel->Caption = "";
 	sensorAmount = 1;
 	Form5->selectSensorComboBox->ItemIndex = 0;
 
@@ -164,6 +165,7 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	//AnsiString all = master.reportAll();
 	//ShowMessage(all);
 	PlotTraceAll(true);
+
 	AnsiString msg = FloatToStr(master.switchover)+ " \n" + master.reportOne(0);
 	SaveMsgToFile(msg, "report.txt");
 
@@ -178,6 +180,8 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	SaveMsgToFile(text, "run_log.txt");
 
 	this->DebugLabel->Caption = "" ;
+	msg = master.reportAll();
+	this->log->Caption = msg;
 }
 //---------------------------------------------------------------------------
 
@@ -186,7 +190,7 @@ void __fastcall TForm5::selectSensorComboBoxChange(TObject *Sender)
 {
 	Sensor* s =  sensors[Form5->selectSensorComboBox->ItemIndex];
 	AnsiString msg  = s->toString();
-	Form5->DebugLabel->Caption = msg;
+	Form5->log->Caption = msg;
 	Chooser->Show();
 }
 //---------------------------------------------------------------------------
@@ -201,7 +205,7 @@ void __fastcall TForm5::selectVisitComboBoxChange(TObject *Sender)
 		return ;
 	}
 	PlotTraceOne(sid-1);
-	AnsiString msg = IntToStr(master.maxChargingSlots) + "\n" + master.reportOne(sid - 1);
+	AnsiString msg = this->sensors[sid-1]->toString() + "\n" + master.reportOne(sid - 1);
 	//ShowMessage(msg);
 	this->log->Caption = msg;
 	}

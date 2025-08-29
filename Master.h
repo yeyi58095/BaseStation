@@ -58,7 +58,10 @@ public:
     // stats per sensor
     std::vector<double> sumQ;
     std::vector<int>    served;
-    std::vector<int>    arrivals;
+	std::vector<int>    arrivals;
+
+	// NEW: per-sensor time integral of "being served"
+	std::vector<double> busySidInt;
 
     // HAP stats
     double busySumTx;

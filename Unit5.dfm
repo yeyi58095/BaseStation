@@ -63,10 +63,10 @@ object Form5: TForm5
     Caption = '0 for inifity'
   end
   object log: TLabel
-    Left = 779
-    Top = 46
-    Width = 3
-    Height = 13
+    Left = 782
+    Top = 24
+    Width = 35
+    Height = 18
   end
   object sensorAmountEdit: TEdit
     Left = 120

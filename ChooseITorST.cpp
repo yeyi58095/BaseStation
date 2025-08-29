@@ -99,7 +99,7 @@ void __fastcall TChooser::chargingRateEditChange(TObject *Sender)
 
 void __fastcall TChooser::Button3Click(TObject *Sender)
 {
-	Form5->DebugLabel->Caption = s->toString();
+	Form5->log->Caption = s->toString();
 	Close();
 }
 //---------------------------------------------------------------------------
