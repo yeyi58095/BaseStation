@@ -116,7 +116,8 @@ public: // logger
     void logStartTx(double t,int sid,int pid,double st,int epBefore,int epCost);
     void logEndTx(double t,int sid,int pid,int q,int epNow);
     void logChargeStart(double t,int sid,int need,int active,int cap);
-    void logChargeEnd(double t,int sid,int add,int epNow);
+	void logChargeEnd(double t,int sid,int add,int epNow);
+	void logDrop(double t, int sid, int q, int qmax, int ep);
 
     AnsiString dumpLogWithSummary() const;
 

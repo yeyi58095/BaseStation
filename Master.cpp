@@ -158,29 +158,41 @@ void Master::run() {
 		// As Data Packet Arrival
 		case EV_DP_ARRIVAL: {
 			Sensor* s = (*sensors)[sid];
+
+			// remember the previous drop count to detect tail-drop caused by THIS arrival
+			int d0 = s->drops;
+
 			s->enqueueArrival();
-			// the funciton will add a new packet (struct) into the deque while the volume of deque is available
-			// with setting its packet id, its servcie, and how much energy(ep) will it cost
+			// the function will add a new packet (struct) into the deque while the volume of deque is available
+			// with setting its packet id, its service time, and how much energy(EP) it will cost
 
-			// the following part is for printing log
-			int pid = s->lastEnqId(); // it just get the id lasest pushed, if is empty, will return -1
-			if (pid >= 0) { //whetheter it is empty or not
-				arrivedIds[sid].push_back(pid);   // push this packet id to corresponding sensor id
-				if ((int)arrivedIds[sid].size() > keepLogIds) arrivedIds[sid].erase(arrivedIds[sid].begin());
-				//avoiding out of memory, cutting the showed information if reached the max volume
-				logArrival(now, sid, pid, (int)s->q.size(), s->energy);
+			// the following part is for printing log (ARRIVAL or DROP)
+			if (s->drops > d0) {
+				// this arrival was dropped because the queue was full → write a DROP line
+				// Qmax could be -1 (infinite); logDrop handles how to print Q/Qmax nicely
+				logDrop(now, sid, (int)s->q.size(), s->Qmax, s->energy);
+			} else {
+				int pid = s->lastEnqId(); // it just gets the id latest pushed; if empty, will return -1
+				if (pid >= 0) {           // whether it is empty or not
+					arrivedIds[sid].push_back(pid);   // push this packet id to corresponding sensor id
+					if ((int)arrivedIds[sid].size() > keepLogIds)
+						arrivedIds[sid].erase(arrivedIds[sid].begin());
+					// avoiding out of memory, cutting the showed information if reaching the max volume
+					logArrival(now, sid, pid, (int)s->q.size(), s->energy);
+				}
 			}
-			arrivals[sid] += 1;   // arrivals (A for each sensor) +1
 
-            // next arrival
-			{ double dt = s->sampleIT(); if (dt <= EPS) dt = EPS; // setting the time interval that next event will arrival
-			  felPush(now + dt, EV_DP_ARRIVAL, sid); }    // pushing that time, event, and id to fel
+			arrivals[sid] += 1;   // arrivals (A for each sensor) +1 no matter dropped or not
 
-			felPush(now + EPS, EV_HAP_POLL, -1);    // push the polling event the fel at the unit time
-													// so that it will polling or called updating each moment
+			// next arrival
+			{ double dt = s->sampleIT(); if (dt <= EPS) dt = EPS; // setting the time interval that next event will arrive
+			  felPush(now + dt, EV_DP_ARRIVAL, sid); }            // pushing that time, event, and id to FEL
+
+			felPush(now + EPS, EV_HAP_POLL, -1); // re-poll soon so that scheduling gets refreshed
 			logSnapshot(now, "after ARRIVAL");
 			break;
 		}
+
 
 		case EV_TX_DONE: {    // hap serviced done time
 			Sensor* s = (*sensors)[sid];
@@ -494,7 +506,7 @@ AnsiString Master::reportOne(int sid) const {
      *
      *   L_hat            : mean system size (this sensor)
      *                      = mean # in queue + mean # in service
-     *                      = (sumQ[i] + busySidInt[i]) / T
+	 *                      = (sumQ[i] + busySidInt[i]) / T
      *                      NOTE: This is what most textbooks call “mean number in system”.
      *
      *   W_hat            : mean system time (waiting + service), carried packets
@@ -542,7 +554,7 @@ AnsiString Master::reportOne(int sid) const {
     out += "arrivals(A)      = " + IntToStr(A) + "  (offered)\n";
     out += "drops(D)         = " + IntToStr(D) + "\n";
     out += "served(S)        = " + IntToStr(S) + "  (carried)\n";
-    out += "backlog(B)       = " + IntToStr(B) + "  (end of run)\n";
+	out += "backlog(B)       = " + IntToStr(B) + "  (end of run)\n";
 
     // Mean queue size (this sensor)
     out += "Lq_hat           = " + FloatToStrF(Lq_hat,  ffFixed, 7, 4) + "  (= mean queue size, waiting only)\n";
@@ -590,7 +602,7 @@ AnsiString Master::reportAll() const {
      *                       → mean queue size per sensor (averaged over sensors)
      *
      * Rates:
-     *   lambda_off (overall) = A / T
+	 *   lambda_off (overall) = A / T
      *   lambda_car (overall) = S / T
 	 *
      * Waiting-time (system):
@@ -754,6 +766,21 @@ AnsiString Master::dumpLogWithSummary() const {
     delete sl;
     return out;
 }
+
+void Master::logDrop(double t,int sid,int q,int qmax,int ep){
+    // Qmax 可能是 -1(無限)，這時就只印目前 Q
+    AnsiString qStr = (qmax >= 0)
+        ? (AnsiString(IntToStr(q)) + "/" + IntToStr(qmax))
+        : AnsiString(IntToStr(q));
+
+    timeline.push_back(
+        AnsiString("t=") + f2(t,3) +
+        "  sensor=" + IntToStr(sid) +
+        "  DROP         Q=" + qStr +
+        "  EP=" + IntToStr(ep)
+    );
+}
+
 
 AnsiString Master::stateLine() const {
 	int N = sensors ? (int)sensors->size() : 0;
