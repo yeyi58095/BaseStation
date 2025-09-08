@@ -75,8 +75,8 @@ double Sensor::startTx() {
     servingId = p.id;
 
     // consume actual energy of this packet
-    energy -= p.needEP;
-    if (energy < 0) energy = 0;
+	//energy -= p.needEP;
+	//if (energy < 0) energy = 0;
 
     return p.st;
 }
