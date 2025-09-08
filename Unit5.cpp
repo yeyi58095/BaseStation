@@ -193,7 +193,7 @@ void __fastcall TForm5::selectVisitComboBoxChange(TObject *Sender)
 		return ;
 	}
 	PlotTraceOne(sid-1);
-	AnsiString msg = this->sensors[sid-1]->toString() + "\n" + master.reportOne(sid - 1);
+	AnsiString msg = /*this->sensors[sid-1]->toString() + "\n" +*/ master.reportOne(sid - 1);
 	//ShowMessage(msg);
 	this->log->Caption = msg;
 	}
@@ -220,7 +220,7 @@ void PlotTraceAll(bool epAverage = true) {
 		Form5->SeriesMean   ->AddXY(t[k], m[k], "", clBlue);
 		Form5->SeriesEP     ->AddXY(t[k], e[k], "", clGreen);
 	}
-	Form5->SeriesEP->Active = false;
+	//Form5->SeriesEP->Active = false;
 	Form5->ckbEP->Checked = false;
 
 	Form5->SeriesThreshold->Active = false;
@@ -311,12 +311,12 @@ void __fastcall TForm5::ckbRtxClick(TObject *Sender)
 void __fastcall TForm5::ckbEPClick(TObject *Sender)
 {
 	this->SeriesEP->Active = this->ckbEP->Checked;
-	if(Form5->selectVisitComboBox->ItemIndex == 0){
+	/*if(Form5->selectVisitComboBox->ItemIndex == 0){
 	Form5->SeriesEP->Active = false;
 	Form5->ckbEP->Checked = false;
 
 	Form5->SeriesThreshold->Active = false;
-	Form5->ckbRtx->Checked = false;}
+	Form5->ckbRtx->Checked = false;} */
 }
 //---------------------------------------------------------------------------
 void __fastcall TForm5::setParaButtonClick(TObject *Sender)

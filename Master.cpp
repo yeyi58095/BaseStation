@@ -73,7 +73,10 @@ void Master::setSensors(std::vector<Sensor*>* v) {
 
     arrivedIds.assign(N, std::vector<int>());
     servedIds.assign(N, std::vector<int>());
-    timeline.clear();
+	timeline.clear();
+
+	sumE.assign(N, 0.0);
+	sumE_tot = 0.0;
 }
 
 void Master::reset() {
@@ -91,6 +94,10 @@ void Master::reset() {
         charging[i] = false; pendCharge[i] = 0;
 		chargeStartT[i] = 0.0; chargeEndT[i] = 0.0;
 		busySidInt[i] = 0.0;
+		sumE[i] = 0.0;
+
+		charging[i] = false; pendCharge[i] = 0;
+		chargeStartT[i] = 0.0; chargeEndT[i] = 0.0;
 
 		chargeNextDt[i] = 0.0;
 
@@ -329,86 +336,69 @@ bool Master::felPop(double& t, EventType& tp, int& sid) {
 	return true;
 }
 
+
 void Master::accumulate() {
-	double dt = now - prev;
-	if (dt <= 0) { prev = now; return; }
+    // 時間切片長度（把上一個事件時間 prev 積到現在 now）
+    double dt = now - prev;
+    if (dt <= 0) { prev = now; return; }
 
-    int N = (sensors ? (int)sensors->size() : 0);
-    int totalQ = 0;
+    const int N = (sensors ? (int)sensors->size() : 0);
+    int totalQ = 0;  // 全系統即時佇列長度（所有 sensor 的 waiting 數量總和）
 
-	for (int i=0;i<N;++i) {
+    for (int i = 0; i < N; ++i) {
 		Sensor* s = (*sensors)[i];
-		int qlen = (int)s->q.size();
-		totalQ += qlen;
+		int qlen = (int)s->q.size();   // 只算等待中的數量（不含 in-service）
+        totalQ += qlen;
+
+		// Lq 的時間積分：sumQ[i] = ∫ q_i(t) dt
         sumQ[i] += dt * qlen;
 
         if (recordTrace) {
-            traceT[i].push_back(now);
-            traceQ[i].push_back(qlen);
+			// 每個 sensor 的軌跡：時間、即時佇列、歷史平均佇列（到 now）、EP、門檻線
+			traceT[i].push_back(now); // traceT[i][k] = now
+			traceQ[i].push_back(qlen); // traceQ[i][k] = qlen 就是在時間k 的queueing size 為 qlen
+
             double meanQ = (now > 0) ? (sumQ[i] / now) : 0.0;
-            traceMeanQ[i].push_back(meanQ);
+			traceMeanQ[i].push_back(meanQ);
 
-            // EP with charging slope
-			double epVis = (double)s->energy;
-			if (charging[i]) {
-				double capRemain = std::max(0, s->E_cap - s->energy);
-				if (capRemain > 0) {
-					double denom = (chargeNextDt[i] > EPS ? chargeNextDt[i] : 1.0); // 避免除 0
-					double prog  = (now - chargeStartT[i]) / denom;  // 0..1 的線性進度，對應「這一顆 EP」的實際等待時間
-					if (prog < 0) prog = 0;
-					if (prog > 1.0) prog = 1.0;
-					if (prog > capRemain) prog = capRemain;          // 接近滿時，格子變小
-					epVis += prog;
-				}
-			}
-			if (epVis > s->E_cap) epVis = s->E_cap;
-			traceE[i].push_back(epVis);
+            // EP 視覺化：只用整數能量（不做連續斜坡）
+            traceE[i].push_back( (double)s->energy );
 
+			// 門檻線 r_tx（右側單一感測器圖會用到）
             traceRtx[i].push_back( (double)s->r_tx );
-		}
+        }
+    }
+
+    // 被服務中那顆感測器的「在服務」指示器的時間積分：busySidInt[sid] = ∫ 1{sid being served} dt
+    if (hapTxBusy && hapTxSid >= 0 && hapTxSid < (int)busySidInt.size()) {
+        busySidInt[hapTxSid] += dt;
 	}
 
-	// ← for (int i=0; i<N; ++i) {...} 結束後新增
-	if (hapTxBusy && hapTxSid >= 0 && hapTxSid < (int)busySidInt.size()) {
-		busySidInt[hapTxSid] += dt;
-	}
+    // 系統層級統計：HAP 忙碌時間積分、充電中的感測器數量的時間積分
+    busySumTx      += dt * (hapTxBusy ? 1 : 0);        // = ∫ 1{HAP transmitting} dt
+    chargeCountInt += dt * (double)chargeActive;       // = ∫ (#sensors charging) dt
 
-
-	busySumTx      += dt * (hapTxBusy ? 1 : 0);
-    chargeCountInt += dt * (double)chargeActive;
-
-	if (recordTrace) {
-		traceT_all.push_back(now);
-		traceQ_all.push_back(totalQ);
+    if (recordTrace) {
+        // 全系統軌跡（左側圖）：時間、即時總佇列、總體平均佇列（到 now）
+        traceT_all.push_back(now);
+        traceQ_all.push_back(totalQ);
 
 		double sumQtot = 0.0;
-		for (int i=0;i<N;++i) sumQtot += sumQ[i];
-		traceMeanQ_all.push_back((now > 0) ? (sumQtot / now) : 0.0);
+        for (int i = 0; i < N; ++i) sumQtot += sumQ[i];
+        traceMeanQ_all.push_back( (now > 0) ? (sumQtot / now) : 0.0 );
 
-	double EsumVis = 0.0;
-	for (int i=0;i<N;++i) {
-		Sensor* s = (*sensors)[i];
-		double epVis = (double)s->energy;
-		if (charging[i]) {
-			double capRemain = std::max(0, s->E_cap - s->energy); // 距離滿還能加多少
-			if (capRemain > 0) {
-				// 針對「當前這一格」用實際抽到的等待時間 chargeNextDt[i]
-				double denom = (chargeNextDt[i] > EPS ? chargeNextDt[i] : 1.0);
-				double prog  = (now - chargeStartT[i]) / denom;   // 0..1 線性進度
-				if (prog < 0)   prog = 0;
-				if (prog > 1.0) prog = 1.0;
-				if (prog > capRemain) prog = capRemain;           // 接近滿，最後一格 < 1
-				epVis += prog;
-			}
+		// 全系統 EP：以整數能量直接做「和」與「平均」
+		double EsumInt = 0.0;
+        for (int i = 0; i < N; ++i) {
+            Sensor* s = (*sensors)[i];
+			EsumInt += (double)s->energy;
 		}
-		if (epVis > s->E_cap) epVis = s->E_cap;
-		EsumVis += epVis;
-	}
-	traceE_all.push_back(EsumVis);
-	traceEavg_all.push_back( (N>0)? (EsumVis / N) : 0.0 );
-	}
+        traceE_all.push_back(EsumInt);
+		traceEavg_all.push_back( (N > 0) ? (EsumInt / N) : 0.0 );
+    }
 
-	prev = now;
+    // 更新上一個積分端點
+    prev = now;
 }
 
 void Master::scheduleIfIdle() {      // the polling part
@@ -527,8 +517,10 @@ AnsiString Master::reportOne(int sid) const {
     out += "W_hat             = " + FloatToStrF(W_hat,  ffFixed, 7, 4) + "  (Little: L_hat / (S/T))\n";
 
 	// (Optional) keep a balance line for debugging; ok to remove if you want it lean:
-    out += "B(end)            = " + IntToStr(B) + "\n";
+	//out += "B(end)            = " + IntToStr(B) + "\n";
     // out += "A ?= D + S + B     →  " + IntToStr(A) + " ?= " + IntToStr(D + S + B) + "\n";
+	double EP_mean = (T > 0) ? (sumE[sid] / T) : 0.0;
+	out += "EP_mean           = " + FloatToStrF(EP_mean, ffFixed, 7, 4) + "  <-- mean energy level (time-avg)\n";
 
     return out;
 }
@@ -588,7 +580,14 @@ AnsiString Master::reportAll() const {
     out += "Wq_all            = " + FloatToStrF(Wq_all,            ffFixed, 7, 4) + "  (Little: Lq_all / (S/T))\n";
 
     out += "L_all             = " + FloatToStrF(L_all,             ffFixed, 7, 4) + "  <-- mean system size (waiting + in-service)\n";
-    out += "W_all             = " + FloatToStrF(W_all,             ffFixed, 7, 4) + "  (Little: L_all / (S/T))\n";
+	out += "W_all             = " + FloatToStrF(W_all,             ffFixed, 7, 4) + "  (Little: L_all / (S/T))\n";
+
+	double EP_sum_mean        = (T > 0) ? (sumE_tot / T) : 0.0;                 // 全系統總能量的時間平均
+	double EP_mean_per_sensor = (T > 0 && N > 0) ? (sumE_tot / (T * N)) : 0.0; // 每個 sensor 的時間平均能量
+
+	out += "EP_sum_mean       = " + FloatToStrF(EP_sum_mean,        ffFixed, 7, 4) + "  <-- mean total energy (time-avg)\n";
+	out += "EP_mean_per_sensor= " + FloatToStrF(EP_mean_per_sensor, ffFixed, 7, 4) + "  <-- mean energy per sensor (time-avg)\n";
+
 
     return out;
 }
@@ -716,39 +715,25 @@ void Master::logDrop(double t,int sid,int q,int qmax,int ep){
 
 AnsiString Master::stateLine() const {
 	int N = sensors ? (int)sensors->size() : 0;
-    AnsiString s = "  [";
-    for (int i = 0; i < N; ++i) {
-        const Sensor* x = (*sensors)[i];
-
-        double epVis = x->energy;
-		if ((size_t)N == charging.size() && charging[i]) {
-			double capRemain = std::max(0, x->E_cap - x->energy);
-			if (capRemain > 0) {
-				double denom = (chargeNextDt[i] > EPS ? chargeNextDt[i] : 1.0);
-				double prog  = (now - chargeStartT[i]) / denom;   // 0..1
-				if (prog < 0)   prog = 0;
-				if (prog > 1.0) prog = 1.0;
-				if (prog > capRemain) prog = capRemain;
-				epVis += prog;
-			}
-		}
-
+	AnsiString s = "  [";
+	for (int i = 0; i < N; ++i) {
+		const Sensor* x = (*sensors)[i];
 
 		s += "S" + IntToStr(i) + "=" + x->queueToStr();
-        if (x->serving) s += "(S:" + IntToStr(x->servingId) + ")";
-        s += " EP=" + IntToStr(x->energy);
-		if (epVis != x->energy) s += " (" + f2(epVis,3) + ")";
-        if (charging.size()==(size_t)N && charging[i]) s += " (chg)";
-        if (i + 1 < N) s += " | ";
-    }
-    s += "]  HAP=";
+		if (x->serving) s += "(S:" + IntToStr(x->servingId) + ")";
+		s += " EP=" + IntToStr(x->energy);   // 只印整數 EP
+		// 不再加 " (epVis)" 的小數顯示
+		if (charging.size()==(size_t)N && charging[i]) s += " (chg)";
+		if (i + 1 < N) s += " | ";
+	}
+	s += "]  HAP=";
     if (hapTxBusy && hapTxSid >= 0) {
         const Sensor* hs = (*sensors)[hapTxSid];
         s += "sid=" + IntToStr(hapTxSid) + ", pkg=" +
              (hs->currentServingId() >= 0 ? AnsiString(IntToStr(hs->currentServingId())) : AnsiString("-"));
     } else {
         s += "idle";
-    }
+	}
     return s;
 }
 
@@ -759,7 +744,7 @@ void Master::logSnapshot(double t, const char* tag) {
 }
 
 int Master::needEPForHead(int sid) const {
-    const Sensor* s = (*sensors)[sid];
+	const Sensor* s = (*sensors)[sid];
 	// 現在先用固定成本 r_tx；未來若要「跟 ST 成本」，
     // 你可改成：return std::max(s->r_tx, txCostBase + txCostPerSec * E[ST]);
     return s->r_tx;

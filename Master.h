@@ -70,14 +70,19 @@ public:
     double chargeCountInt;
 
     // traces
-    bool recordTrace;
+	bool recordTrace;
     std::vector< std::vector<double> > traceT, traceQ, traceMeanQ;
-    std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;
+	std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;
 
     std::vector< std::vector<double> > traceE;    // EP(t) with charging slope
 	std::vector< std::vector<double> > traceRtx;  // r_tx for plotting
-    std::vector<double> traceE_all;               // sum EP
-    std::vector<double> traceEavg_all;            // avg EP
+	std::vector<double> traceE_all;               // sumE EP
+	std::vector<double> traceEavg_all;            // avg EP
+
+	// EP
+
+	std::vector<double> sumE; // \int EP_i(t) dt
+	double sumE_tot; // \int \sum_i E_i(t) dt
 
 public:
     Master();
