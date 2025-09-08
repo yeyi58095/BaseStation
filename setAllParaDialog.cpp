@@ -97,6 +97,12 @@ void __fastcall TsetAllPara::OnShow(TObject *Sender)
 
 	manageVisible(this->ComboBox1);
 	manageVisible(this->ComboBox2);
+
+	//----------EP-------------------
+	this->CapacityEdit->Text = s->E_cap;
+	this->chargingRateEdit->Text = s->charge_rate;
+	this->REdit->Text = s->txCostPerSec;
+	this->thresholdEdit->Text = s->r_tx;
 }
 //---------------------------------------------------------------------------
 
@@ -114,6 +120,13 @@ void __fastcall TsetAllPara::OKClick(TObject *Sender)
 		sensor->STdistri = this->ComboBox2->ItemIndex;
 		sensor->STpara1 = StrToFloat(this->STpara1Edit->Text);
 		sensor->STpara2 = StrToFloat(this->STpara2Edit->Text);
+
+		// ----------EP---------------//
+
+		sensor->E_cap = StrToIntDef(this->CapacityEdit->Text, 100);
+		sensor->charge_rate = StrToFloatDef(this->chargingRateEdit->Text, 2.0);
+		sensor->txCostPerSec = StrToFloatDef(this->REdit->Text, 10.0);
+		sensor->r_tx = StrToIntDef(this->thresholdEdit->Text, 5);
 	}
 
 

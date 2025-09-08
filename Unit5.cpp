@@ -179,7 +179,7 @@ void __fastcall TForm5::selectSensorComboBoxChange(TObject *Sender)
 	Sensor* s =  sensors[Form5->selectSensorComboBox->ItemIndex];
 	AnsiString msg  = s->toString();
 	Form5->log->Caption = msg;
-	Chooser->Show();
+	//Chooser->Show();
 }
 //---------------------------------------------------------------------------
 

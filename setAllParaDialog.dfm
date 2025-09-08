@@ -70,6 +70,41 @@ object setAllPara: TsetAllPara
     Height = 13
     Caption = 'BufferSize'
   end
+  object EP: TLabel
+    Left = 312
+    Top = 16
+    Width = 12
+    Height = 13
+    Caption = 'EP'
+  end
+  object Capacity: TLabel
+    Left = 312
+    Top = 35
+    Width = 42
+    Height = 13
+    Caption = 'Capacity'
+  end
+  object Charging_Rate: TLabel
+    Left = 312
+    Top = 59
+    Width = 72
+    Height = 13
+    Caption = 'Charging_Rate'
+  end
+  object R: TLabel
+    Left = 312
+    Top = 91
+    Width = 7
+    Height = 13
+    Caption = 'R'
+  end
+  object Threshold: TLabel
+    Left = 312
+    Top = 115
+    Width = 47
+    Height = 13
+    Caption = 'Threshold'
+  end
   object ComboBox1: TComboBox
     Left = 128
     Top = 56
@@ -144,5 +179,37 @@ object setAllPara: TsetAllPara
     Caption = 'OK'
     TabOrder = 7
     OnClick = OKClick
+  end
+  object CapacityEdit: TEdit
+    Left = 360
+    Top = 29
+    Width = 81
+    Height = 21
+    TabOrder = 8
+    Text = 'CapacityEdit'
+  end
+  object chargingRateEdit: TEdit
+    Left = 390
+    Top = 56
+    Width = 51
+    Height = 21
+    TabOrder = 9
+    Text = 'chargingRateEdit'
+  end
+  object REdit: TEdit
+    Left = 325
+    Top = 88
+    Width = 116
+    Height = 21
+    TabOrder = 10
+    Text = 'REdit'
+  end
+  object thresholdEdit: TEdit
+    Left = 365
+    Top = 115
+    Width = 76
+    Height = 21
+    TabOrder = 11
+    Text = 'thresholdEdit'
   end
 end

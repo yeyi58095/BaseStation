@@ -27,6 +27,15 @@ __published:	// IDE-managed Components
 	TLabel *BufferSize;
 	TEdit *BufferSizeEdit;
 	TButton *OK;
+	TLabel *EP;
+	TLabel *Capacity;
+	TEdit *CapacityEdit;
+	TLabel *Charging_Rate;
+	TEdit *chargingRateEdit;
+	TLabel *R;
+	TEdit *REdit;
+	TLabel *Threshold;
+	TEdit *thresholdEdit;
 	void __fastcall OnShow(TObject *Sender);
 	void __fastcall OKClick(TObject *Sender);
 	void __fastcall ComboBox1Change(TObject *Sender);

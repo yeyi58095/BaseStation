@@ -60,8 +60,6 @@ void __fastcall TparameterSetter::OnShow(TObject *Sender)
 
 		default:
 			break;
-
-
 	}
 }
 //---------------------------------------------------------------------------
