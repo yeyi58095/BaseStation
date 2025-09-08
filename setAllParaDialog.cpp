@@ -50,14 +50,13 @@ void manageVisible(TComboBox* t){
 	}
 
 	if(t == setAllPara->ComboBox2){
-		ShowMessage(IntToStr(t->ItemIndex));
 		if(t->ItemIndex == 1){
 			setAllPara->STpara2Edit->Visible = false;
 			setAllPara->STpara2->Visible = false;
 		}else{
 			setAllPara->STpara2Edit->Visible = true;
 			setAllPara->STpara2->Visible = true;
-        }
+		}
 
 		switch(t->ItemIndex){
 			case 0:
@@ -86,11 +85,49 @@ void __fastcall TsetAllPara::OnShow(TObject *Sender)
 	if(Form5->sensorAmountEdit->Text != 0){
 		s = Form5->sensors[0];
 	}
+	this->BufferSizeEdit->Text = s->Qmax;
 	this->ComboBox1->ItemIndex = s->ITdistri;
 	this->ComboBox2->ItemIndex = s->STdistri;
+
+	this->ITpara1Edit->Text = s->ITpara1;
+	this->ITpara2Edit->Text = s->ITpara2;
+
+	this->STpara1Edit->Text = s->STpara1;
+	this->STpara2Edit->Text = s->STpara2;
 
 	manageVisible(this->ComboBox1);
 	manageVisible(this->ComboBox2);
 }
 //---------------------------------------------------------------------------
 
+void __fastcall TsetAllPara::OKClick(TObject *Sender)
+{
+	int N = Form5->sensors.size();
+
+	for(int i = 0; i < N; i++){
+		Sensor *sensor = Form5->sensors[i];
+		sensor->Qmax = StrToIntDef(this->BufferSizeEdit->Text, 10);
+		sensor->ITdistri = this->ComboBox1->ItemIndex;
+		sensor->ITpara1 = StrToFloat(this->ITpara1Edit->Text);
+		sensor->ITpara2 = StrToFloat(this->ITpara2Edit->Text);
+
+		sensor->STdistri = this->ComboBox2->ItemIndex;
+		sensor->STpara1 = StrToFloat(this->STpara1Edit->Text);
+		sensor->STpara2 = StrToFloat(this->STpara2Edit->Text);
+	}
+
+
+	Form5->DebugLabel->Caption = Form5->sensors[0]->toString();
+	Close();
+}
+//---------------------------------------------------------------------------
+void __fastcall TsetAllPara::ComboBox1Change(TObject *Sender)
+{
+	manageVisible(setAllPara->ComboBox1);
+}
+//---------------------------------------------------------------------------
+void __fastcall TsetAllPara::ComboBox2Change(TObject *Sender)
+{
+	manageVisible(setAllPara->ComboBox2);
+}
+//---------------------------------------------------------------------------

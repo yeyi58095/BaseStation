@@ -26,7 +26,11 @@ __published:	// IDE-managed Components
 	TEdit *STpara2Edit;
 	TLabel *BufferSize;
 	TEdit *BufferSizeEdit;
+	TButton *OK;
 	void __fastcall OnShow(TObject *Sender);
+	void __fastcall OKClick(TObject *Sender);
+	void __fastcall ComboBox1Change(TObject *Sender);
+	void __fastcall ComboBox2Change(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TsetAllPara(TComponent* Owner);

@@ -11,7 +11,7 @@ Sensor::Sensor(int id)
   ITpara1(1.0), ITpara2(0.0),
   STpara1(1.5), STpara2(0.0),
   energy(0), E_cap(100), r_tx(1), charge_rate(1.0),
-  Qmax(-1), drops(0),
+  Qmax(10), drops(0),
   pktSeq(0), init_preload(0),
   // default energy-cost model: downward-compatible
   txCostBase(r_tx), txCostPerSec(0.0)

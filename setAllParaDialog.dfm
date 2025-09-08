@@ -77,6 +77,7 @@ object setAllPara: TsetAllPara
     Height = 21
     TabOrder = 0
     Text = 'ComboBox1'
+    OnChange = ComboBox1Change
     Items.Strings = (
       'normal'
       'exponential'
@@ -105,6 +106,7 @@ object setAllPara: TsetAllPara
     Height = 21
     TabOrder = 3
     Text = 'ComboBox2'
+    OnChange = ComboBox2Change
     Items.Strings = (
       'normal'
       'exponential'
@@ -133,5 +135,14 @@ object setAllPara: TsetAllPara
     Height = 21
     TabOrder = 6
     Text = '10'
+  end
+  object OK: TButton
+    Left = 784
+    Top = 86
+    Width = 75
+    Height = 25
+    Caption = 'OK'
+    TabOrder = 7
+    OnClick = OKClick
   end
 end
