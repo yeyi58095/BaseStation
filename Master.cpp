@@ -205,23 +205,42 @@ void Master::run() {
             break;
         }
 
-        case EV_TX_DONE: {
-            Sensor* s = (*sensors)[sid];
-            int pid = s->currentServingId();
-            logEndTx(now, sid, pid, (int)s->q.size(), s->energy);
+		case EV_TX_DONE: {
+			Sensor* s = (*sensors)[sid];
 
-            s->finishTx();
-            served[sid] += 1;
+			// ★ 在結束瞬間補扣尚未扣完的 EP（不花時間）
+			if (sid >= 0 && sid < (int)txEpRemain.size()) {
+				int rem = txEpRemain[sid];
+				if (rem > 0) {
+					// 若你一開始就要求 energy >= frontNeedEP()，這裡不會負數；
+					// 但保險仍夾 0
+					s->energy -= rem;
+					if (s->energy < 0) s->energy = 0;
 
-            servedIds[sid].push_back(pid);
-            if ((int)servedIds[sid].size() > keepLogIds) servedIds[sid].erase(servedIds[sid].begin());
+					// 清空本次 TX 的逐步扣狀態
+					txEpRemain[sid]   = 0;
+					txTickPeriod[sid] = 0.0;
+					txStartT[sid]     = 0.0;
+					txEndT[sid]       = 0.0;
+				}
+			}
 
-            hapTxBusy = false; hapTxSid = -1;
+			int pid = s->currentServingId();
+			logEndTx(now, sid, pid, (int)s->q.size(), s->energy);
 
-            felPush(now, EV_HAP_POLL, -1);
-            logSnapshot(now, "after END_TX");
-            break;
-        }
+			s->finishTx();
+			served[sid] += 1;
+
+			servedIds[sid].push_back(pid);
+			if ((int)servedIds[sid].size() > keepLogIds) servedIds[sid].erase(servedIds[sid].begin());
+
+			hapTxBusy = false; hapTxSid = -1;
+
+			felPush(now, EV_HAP_POLL, -1);
+			logSnapshot(now, "after END_TX");
+			break;
+		}
+
 
         case EV_CHARGE_END: {
             // 目前不用（保留未來多段充電）
