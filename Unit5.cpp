@@ -57,6 +57,8 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	this->SeriesEP->Active = false;
 	this->chkQ->Checked = true;
 	this->ckbMean->Checked = true;
+
+	this->generatorButtonClick(NULL);
 }
 
 //---------------------------------------------------------------------------
@@ -86,6 +88,7 @@ void __fastcall TForm5::generatorButtonClick(TObject *Sender)
 		Sensor* s = new Sensor(i);
 		s->setArrivalExp(0.4);  // λ_i，UI 再改
 		s->setServiceExp(1.5);  // μ_i，UI 再改
+
 		sensors.push_back(s);
 		selectSensorComboBox->Items->Add(IntToStr(i+1));
 	}

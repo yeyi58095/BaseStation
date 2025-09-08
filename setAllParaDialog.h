@@ -17,15 +17,16 @@ __published:	// IDE-managed Components
 	TLabel *ITpara1;
 	TEdit *ITpara1Edit;
 	TLabel *ITpara2;
-	TEdit *Edit1;
+	TEdit *ITpara2Edit;
 	TLabel *Label3;
 	TComboBox *ComboBox2;
 	TLabel *STpara1;
 	TLabel *STpara2;
-	TEdit *SPpara1Edit;
+	TEdit *STpara1Edit;
 	TEdit *STpara2Edit;
 	TLabel *BufferSize;
 	TEdit *BufferSizeEdit;
+	void __fastcall OnShow(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TsetAllPara(TComponent* Owner);

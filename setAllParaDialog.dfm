@@ -11,6 +11,7 @@ object setAllPara: TsetAllPara
   Font.Name = 'Tahoma'
   Font.Style = []
   OldCreateOrder = False
+  OnShow = OnShow
   PixelsPerInch = 96
   TextHeight = 13
   object Label1: TLabel
@@ -89,7 +90,7 @@ object setAllPara: TsetAllPara
     TabOrder = 1
     Text = '0'
   end
-  object Edit1: TEdit
+  object ITpara2Edit: TEdit
     Left = 172
     Top = 111
     Width = 61
@@ -109,7 +110,7 @@ object setAllPara: TsetAllPara
       'exponential'
       'uniform')
   end
-  object SPpara1Edit: TEdit
+  object STpara1Edit: TEdit
     Left = 174
     Top = 176
     Width = 59
