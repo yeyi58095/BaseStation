@@ -1,4 +1,4 @@
-#include "Sensor.h"
+Ôªø#include "Sensor.h"
 #include "RandomVar.h"
 #include <System.SysUtils.hpp>
 #include <algorithm>
@@ -18,7 +18,7 @@ Sensor::Sensor(int id)
 {
 }
 
-// ±NØB¬Iº∆ÆÊ¶°§∆¨∞©T©w§pº∆°B®√¬‡¶® AnsiString
+// Â∞áÊµÆÈªûÊï∏Ê†ºÂºèÂåñÁÇ∫Âõ∫ÂÆöÂ∞èÊï∏„ÄÅ‰∏¶ËΩâÊàê AnsiString
 static AnsiString FixStr(double v, int prec = 3) {
     return AnsiString(FloatToStrF(v, ffFixed, 7, prec));
 }
@@ -45,7 +45,7 @@ double Sensor::sampleST() const {
 
 int Sensor::energyForSt(double st) const {
     if (st < 0) st = 0;
-    double need = txCostBase + txCostPerSec * st;
+	double need =  txCostPerSec * st;
     int needInt = (int)std::ceil(need - 1e-12);
     if (needInt < 1) needInt = 1;
     return needInt;
@@ -92,80 +92,80 @@ void Sensor::addEnergy(int units) {
 }
 
 AnsiString Sensor::toString() const {
-    AnsiString out;
+    AnsiString msg;
+    msg += "Sensor " + IntToStr(id+1) + "\n";
 
-    out += "Sensor " + IntToStr(id + 1) + "  [static config]\n";
+    // ===== DP (traffic) =====
+    msg += "DP:\n";
+    msg += "  Buffer size = " + IntToStr(Qmax) + "\n";
 
-    // === IT (Interarrival Time) ===
-    out += "IT RV: ";
+    // Arrival (IT) -> show distribution + arrival rate (if available)
+    msg += "  Arrival: ";
+    double itMean = -1.0; // mean inter-arrival
     switch (ITdistri) {
+        case DIST_EXPONENTIAL:
+            msg += "exponential, rate Œª=" + FloatToStrF(ITpara1, ffFixed, 7, 3);
+            if (ITpara1 > 0) itMean = 1.0 / ITpara1;
+            break;
         case DIST_NORMAL:
-            out += "Normal(mean=" + FixStr(ITpara1) +
-                   ", stddev="    + FixStr(ITpara2) + ")";
+            msg += "normal, mean=" + FloatToStrF(ITpara1, ffFixed, 7, 3)
+                + ", stddev=" + FloatToStrF(ITpara2, ffFixed, 7, 3);
+            itMean = ITpara1;
             break;
-        case DIST_EXPONENTIAL: {
-            double rate = ITpara1;
-            AnsiString meanStr;
-            if (rate > 0.0) meanStr = FixStr(1.0 / rate);
-            else            meanStr = "inf";
-            out += "Exponential(rate=" + FixStr(rate) +
-                   ", mean=" + meanStr + ")";
-            break;
-        }
         case DIST_UNIFORM:
-            out += "Uniform(a=" + FixStr(ITpara1) +
-                   ", b="       + FixStr(ITpara2) + ")";
+            msg += "uniform, a=" + FloatToStrF(ITpara1, ffFixed, 7, 3)
+                + ", b=" + FloatToStrF(ITpara2, ffFixed, 7, 3);
+            itMean = 0.5 * (ITpara1 + ITpara2);
             break;
         default:
-            out += "(unknown)";
+            msg += "(unknown)";
             break;
     }
-    out += "\n";
+    if (itMean > 0) {
+        double lam = 1.0 / itMean; // implied arrival rate
+        msg += "\n  Arrival rate Œª ‚âà " + FloatToStrF(lam, ffFixed, 7, 3);
+    }
 
-    // === ST (Service Time / TX time per packet) ===
-    out += "ST RV: ";
+    // Service time (ST) -> show distribution + service rate (if available)
+    msg += "\n  Service time: ";
+    double stMean = -1.0; // mean service time
     switch (STdistri) {
+        case DIST_EXPONENTIAL:
+            msg += "exponential, rate Œº=" + FloatToStrF(STpara1, ffFixed, 7, 3);
+            if (STpara1 > 0) stMean = 1.0 / STpara1;  // mean = 1/Œº
+            break;
         case DIST_NORMAL:
-            out += "Normal(mean=" + FixStr(STpara1) +
-                   ", stddev="    + FixStr(STpara2) + ")";
+            msg += "normal, mean=" + FloatToStrF(STpara1, ffFixed, 7, 3)
+                + ", stddev=" + FloatToStrF(STpara2, ffFixed, 7, 3);
+            stMean = STpara1;
             break;
-        case DIST_EXPONENTIAL: {
-            double rate = STpara1;
-            AnsiString meanStr;
-            if (rate > 0.0) meanStr = FixStr(1.0 / rate);
-            else            meanStr = "inf";
-            out += "Exponential(rate=" + FixStr(rate) +
-                   ", mean=" + meanStr + ")";
-            break;
-        }
         case DIST_UNIFORM:
-            out += "Uniform(a=" + FixStr(STpara1) +
-                   ", b="       + FixStr(STpara2) + ")";
+            msg += "uniform, a=" + FloatToStrF(STpara1, ffFixed, 7, 3)
+                + ", b=" + FloatToStrF(STpara2, ffFixed, 7, 3);
+            stMean = 0.5 * (STpara1 + STpara2);
             break;
         default:
-            out += "(unknown)";
+            msg += "(unknown)";
             break;
     }
-    out += "\n";
+    if (stMean > 0) {
+        double mu = 1.0 / stMean; // implied service rate
+        msg += "\n  Service rate Œº ‚âà " + FloatToStrF(mu, ffFixed, 7, 3);
+    }
 
-    // === DP (data queue) ===
-    AnsiString qmaxStr;
-    if (Qmax < 0) qmaxStr = "inf";
-    else          qmaxStr = IntToStr(Qmax);
-    out += "DP: Qmax=" + qmaxStr +
-		   ", preload=" + IntToStr(init_preload) + "\n";
+    // ===== EP (energy/power) =====
+    // Rename per meeting:
+    //   E_cap -> Capacity
+    //   r_tx  -> Threshold
+    //   R     -> energy per second during service (use txCostPerSec as R)
+    msg += "\nEP:\n";
+    msg += "  Capacity       = " + IntToStr(E_cap) + "\n";
+    msg += "  Charging rate  = " + FloatToStrF(charge_rate, ffFixed, 7, 3) + "  (exp waiting, mean 1/Œª)\n";
+    msg += "  R (EP/sec)     = " + FloatToStrF(txCostPerSec, ffFixed, 7, 3) + "\n";
+    msg += "  Threshold      = " + IntToStr(r_tx) + "  (min EP to start a transmission)\n";
+    msg += "  Energy model   = ceil(R * service_time)\n";
 
-    // === EP (energy params) ===  °∞•u¶C¿R∫A∞—º∆
-    out += "EP: cap=" + AnsiString(IntToStr(E_cap)) +
-           ", r_tx=" + AnsiString(IntToStr(r_tx)) +
-           ", charge_rate=" + FixStr(charge_rate) + " (EP/sec)\n";
-
-    // === EP-cost model ===
-    out += "EP-cost: base=" + FixStr(txCostBase) +
-           ", perSec=" + FixStr(txCostPerSec) +
-		   "  \nneedEP = ceil(base + perSec * ST), min=1\n";
-
-    return out;
+    return msg;
 }
 
 AnsiString Sensor::queueToStr() const {

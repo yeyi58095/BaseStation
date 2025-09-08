@@ -478,46 +478,23 @@ void Master::scheduleIfIdle() {      // the polling part
 
 AnsiString Master::reportOne(int sid) const {
     /*
-     * Per-sensor (single sensor) report
+     * Per-sensor runtime report (no λ_off / λ_car printed).
      *
-     * Definitions (per sensor i = sid):
-     *   T                : run horizon in seconds (now)
-     *   A (=arrivals[i]) : total offered packet arrivals to sensor i
-     *   D (=s->drops)    : packets dropped at queue-full (tail-drop) for sensor i
-     *   S (=served[i])   : packets successfully transmitted (completed) from sensor i
-     *   B                : backlog at end-of-run for sensor i
-     *                      = queue length + 1 if being served else 0
-	 *
-     *   sumQ[i]          : time-integral of queue length of sensor i
-     *   busySidInt[i]    : time-integral of the {0/1} indicator that sensor i
-     *                      is *in service* (i.e., being transmitted by the HAP).
+     * Notation (for sensor i = sid):
+     *   T                 : run horizon (seconds)
+     *   A, D, S, B        : arrivals, drops, served, end backlog
+     *   sumQ[i]           : ∫ queue_length_i(t) dt  (waiting only)
+     *   busySidInt[i]     : ∫ 1{sensor i in service}(t) dt
      *
-     *   Lq_hat           : mean queue size (this sensor, waiting only)
-     *                      = sumQ[i] / T
-     *
-	 *   lambda_off       : offered arrival rate for this sensor
-     *                      = A / T
-     *   lambda_car       : carried rate (throughput) for this sensor
-     *                      = S / T
-     *   loss_rate        : drop ratio = D / A  (defined as 0 if A==0)
-     *
-	 *   Wq_hat           : mean waiting time in queue (carried packets only)
-     *                      Little’s law with carried rate: Wq_hat = Lq_hat / lambda_car
-     *
-     *   L_hat            : mean system size (this sensor)
-     *                      = mean # in queue + mean # in service
-	 *                      = (sumQ[i] + busySidInt[i]) / T
-     *                      NOTE: This is what most textbooks call “mean number in system”.
-     *
-     *   W_hat            : mean system time (waiting + service), carried packets
-     *                      = L_hat / lambda_car
-     *
-     *   rho(sensor i)    : fraction of time sensor i is being served
-     *                      = busySidInt[i] / T
-     *
-     *   Sanity check     : A ?= D + S + B
-     *                      (In a stable long run, this mass balance should hold
-     *                       up to initial preloads and end effects.)
+     *   Lq_hat            : mean queue size (waiting only)
+     *                       = sumQ[i] / T
+     *   L_hat             : mean system size (queue + in-service)
+     *                       = (sumQ[i] + busySidInt[i]) / T
+     *   Wq_hat            : mean queue waiting time (carried pkts)
+     *                       = Lq_hat / (S/T)  if S>0 else 0
+     *   W_hat             : mean system time (waiting + service)
+     *                       = L_hat / (S/T)   if S>0 else 0
+     *   loss_rate         : D / A  (0 if A==0)
      */
 
     AnsiString out;
@@ -526,104 +503,54 @@ AnsiString Master::reportOne(int sid) const {
     const Sensor* s = (*sensors)[sid];
     double T = now;
 
-	// Basic counters
+    // Counters
     int    A = arrivals[sid];
     int    D = s->drops;
     int    S = served[sid];
     int    B = (int)s->q.size() + (s->serving ? 1 : 0);
 
-    // Time-averaged metrics
-    double Lq_hat  = (T > 0) ? (sumQ[sid] / T) : 0.0;      // mean queue size (waiting only)
-	double lam_off = (T > 0) ? ((double)A / T) : 0.0;      // offered rate
-	double lam_car = (T > 0) ? ((double)S / T) : 0.0;      // carried (throughput)
-    double loss    = (A > 0) ? ((double)D / (double)A) : 0.0;
-
-    // Mean waiting time in queue (Little’s law with carried rate)
-    double Wq_hat  = (lam_car > 0) ? (Lq_hat / lam_car) : 0.0;
-
-    // Mean system size for this sensor (queue + in service)
-    double L_hat   = (T > 0) ? ((sumQ[sid] + busySidInt[sid]) / T) : 0.0;
-    // Mean system time (waiting + service) for carried packets of this sensor
-    double W_hat   = (lam_car > 0) ? (L_hat / lam_car) : 0.0;
-
-    // Fraction of time this sensor is being served
-    double rho_i   = (T > 0) ? (busySidInt[sid] / T) : 0.0;
+    // Averages
+    double Lq_hat = (T > 0) ? (sumQ[sid] + 0.0) / T : 0.0;           // mean queue size (waiting only)
+    double L_hat  = (T > 0) ? (sumQ[sid] + busySidInt[sid]) / T : 0.0; // mean system size
+    double thr    = (T > 0) ? ( (S > 0) ? ((double)S / T) : 0.0 ) : 0.0; // carried "rate" used internally
+    double Wq_hat = (thr > 0) ? (Lq_hat / thr) : 0.0;
+    double W_hat  = (thr > 0) ? (L_hat  / thr) : 0.0;
+    double loss   = (A > 0) ? ((double)D / (double)A) : 0.0;
 
     out += "Sensor " + IntToStr(sid+1) + "\n";
-    out += "T                = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
-    out += "arrivals(A)      = " + IntToStr(A) + "  (offered)\n";
-    out += "drops(D)         = " + IntToStr(D) + "\n";
-    out += "served(S)        = " + IntToStr(S) + "  (carried)\n";
-	out += "backlog(B)       = " + IntToStr(B) + "  (end of run)\n";
+    out += "T                 = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
+    out += "arrivals(A)       = " + IntToStr(A) + "\n";
+    out += "loss_rate         = " + FloatToStrF(loss, ffFixed, 7, 4) + "  (= D/A)\n";
+    out += "Lq_hat            = " + FloatToStrF(Lq_hat, ffFixed, 7, 4) + "  <-- mean queue size\n";
+    out += "Wq_hat            = " + FloatToStrF(Wq_hat, ffFixed, 7, 4) + "  (Little: Lq_hat / (S/T))\n";
+    out += "L_hat             = " + FloatToStrF(L_hat,  ffFixed, 7, 4) + "  <-- mean system size (queue + in-service)\n";
+    out += "W_hat             = " + FloatToStrF(W_hat,  ffFixed, 7, 4) + "  (Little: L_hat / (S/T))\n";
 
-    // Mean queue size (this sensor)
-    out += "Lq_hat           = " + FloatToStrF(Lq_hat,  ffFixed, 7, 4) + "  (= mean queue size, waiting only)\n";
+	// (Optional) keep a balance line for debugging; ok to remove if you want it lean:
+    out += "B(end)            = " + IntToStr(B) + "\n";
+    // out += "A ?= D + S + B     →  " + IntToStr(A) + " ?= " + IntToStr(D + S + B) + "\n";
 
-    // Rates
-	out += "lambda_off       = " + FloatToStrF(lam_off, ffFixed, 7, 4) + " = offered arrival rate = A / T \n";
-	out += "lambda_car       = " + FloatToStrF(lam_car, ffFixed, 7, 4) + "  (= throughput) = S/T\n";
-    out += "loss_rate        = " + FloatToStrF(loss,    ffFixed, 7, 4) + "  (= D/A)\n";
-
-    // Mean waiting time (queue) from Little’s law
-	out += "Wq_hat           = " + FloatToStrF(Wq_hat,  ffFixed, 7, 4) + "  (Little: Lq_hat / lambda_car)\n";
-
-    // Mean system size & time (this sensor)
-    out += "L_hat            = " + FloatToStrF(L_hat,   ffFixed, 7, 4) + "  (= mean system size: queue + in-service)\n";
-    out += "W_hat            = " + FloatToStrF(W_hat,   ffFixed, 7, 4) + "  (Little: L_hat / lambda_car)\n";
-
-    // Service share for this sensor
-    out += "rho(sensor)      = " + FloatToStrF(rho_i,   ffFixed, 7, 4) + "  (fraction of time being served)\n";
-
-    // Flow conservation check
-	out += "A ?= D + S + B   →  " + IntToStr(A) + " ?= " + IntToStr(D + S + B) + "\n";
-    out += "(Shared-HAP w/ FDM charging; no simple closed form)\n";
     return out;
 }
 
 AnsiString Master::reportAll() const {
     /*
-     * System-wide report (aggregated across all sensors)
-	 *
-     * N                : number of sensors
-     * T                : run horizon in seconds (now)
+     * System-wide runtime report (aggregated across all sensors).
+     * No λ_off / λ_car printed; they are only used internally for Little's law.
      *
      * Totals:
-     *   A = Σ_i arrivals[i]     (total offered arrivals)
-     *   D = Σ_i drops_i         (total drops across sensors)
-     *   S = Σ_i served[i]       (total served / throughput count)
-     *   B = Σ_i backlog_i(end)  (sum of end-of-run backlogs)
+     *   A = Σ arrivals[i],  D = Σ drops_i,  S = Σ served[i]
+     *   sumQtot = Σ sumQ[i]
      *
-     *   sumQtot = Σ_i sumQ[i]   (integral of total queue length)
+     * Means (system):
+     *   Lq_all  = sumQtot / T                     (mean total waiting in system)
+     *   L_all   = (sumQtot + busySumTx) / T       (mean system size: waiting + in-service)
+     *   Wq_all  = Lq_all / (S/T)   if S>0 else 0  (mean queue wait, carried pkts)
+     *   W_all   = L_all  / (S/T)   if S>0 else 0  (mean system time)
+     *   loss_all= D / A         (0 if A==0)
      *
-     * Mean queue sizes:
-     *   Lq_all            = sumQtot / T
-     *                       → mean total # of waiting packets in the whole system
+     * Also:
      *   Lq_avg_per_sensor = (N>0) ? Lq_all / N : 0
-     *                       → mean queue size per sensor (averaged over sensors)
-     *
-     * Rates:
-	 *   lambda_off (overall) = A / T
-     *   lambda_car (overall) = S / T
-	 *
-     * Waiting-time (system):
-     *   Wq_all = (lambda_car>0) ? Lq_all / lambda_car : 0
-     *            → mean waiting time in queue, for carried packets, system-wide
-     *
-     * HAP/charging utilizations:
-     *   TX busy      = busySumTx / T
-     *                  → fraction of time the HAP was transmitting (system-level)
-	 *   avg charging = chargeCountInt / T
-     *                  → time-average number of sensors being charged in parallel
-     *
-     * Mean system size/time (system):
-     *   L_all = (sumQtot + busySumTx) / T
-     *           → mean # in system = waiting + in-service
-     *             (There is at most one in-service packet system-wide; its integral is busySumTx.)
-     *   W_all = (lambda_car>0) ? L_all / lambda_car : 0
-     *           → mean system time (waiting + service), carried packets, system-wide
-     *
-     * Sanity:
-     *   A ?= D + S + B
      */
 
     AnsiString out;
@@ -632,67 +559,37 @@ AnsiString Master::reportAll() const {
 
     double T = now;
 
-    // System totals
-    long long A=0, D=0, S=0, B=0;
+    long long A = 0, D = 0, S = 0;
     double sumQtot = 0.0;
-    for (int i=0;i<N;++i) {
+    for (int i = 0; i < N; ++i) {
         const Sensor* s = (*sensors)[i];
         A += arrivals[i];
         D += s->drops;
         S += served[i];
-        B += (int)s->q.size() + (s->serving ? 1 : 0);
         sumQtot += sumQ[i];
     }
 
-    // Queue means (system)
-    double Lq_all            = (T > 0) ? (sumQtot / T) : 0.0;                 // mean total waiting in system
-    double Lq_avg_per_sensor = (N > 0) ? (Lq_all / N) : 0.0;                  // mean waiting per sensor
-
-    // Rates (system)
-    double lam_off  = (T > 0) ? ((double)A / T) : 0.0;
-    double lam_car  = (T > 0) ? ((double)S / T) : 0.0;
-
-    // Mean waiting time in queue (system)
-	double Wq_all   = (lam_car > 0) ? (Lq_all / lam_car) : 0.0;
-
-    // HAP busy & charging
-    double txBusy   = (T > 0) ? (busySumTx / T) : 0.0;
-    double avgCharg = (T > 0) ? (chargeCountInt / T) : 0.0;
-
-    // Mean system size/time (system)
-    double L_all    = (T > 0) ? ((sumQtot + busySumTx) / T) : 0.0;            // mean system size
-    double W_all    = (lam_car > 0) ? (L_all / lam_car) : 0.0;                // mean system time
+    double Lq_all            = (T > 0) ? (sumQtot / T) : 0.0;                  // mean total waiting in system
+    double Lq_avg_per_sensor = (N > 0) ? (Lq_all / N) : 0.0;                   // mean waiting per sensor
+    double thr               = (T > 0) ? ( (S > 0) ? ((double)S / T) : 0.0 ) : 0.0; // carried "rate" internal
+    double Wq_all            = (thr > 0) ? (Lq_all / thr) : 0.0;
+    double L_all             = (T > 0) ? ((sumQtot + busySumTx) / T) : 0.0;    // waiting + in-service
+    double W_all             = (thr > 0) ? (L_all / thr) : 0.0;
+    double loss_all          = (A > 0) ? ((double)D / (double)A) : 0.0;
 
     out += "=== Overall (All sensors) ===\n";
-    out += "N                = " + IntToStr(N) + "\n";
-    out += "T                = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
-    out += "arrivals(A)      = " + IntToStr((int)A) + "\n";
-    out += "drops(D)         = " + IntToStr((int)D) + "\n";
-    out += "served(S)        = " + IntToStr((int)S) + "\n";
-    out += "backlog(B)       = " + IntToStr((int)B) + "\n";
+    out += "N                 = " + IntToStr(N) + "\n";
+    out += "T                 = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
+    out += "arrivals(A)       = " + IntToStr((int)A) + "\n";
+    out += "loss_rate         = " + FloatToStrF(loss_all, ffFixed, 7, 4) + "  (= D/A)\n";
 
-    // Mean queue sizes (system)
-    out += "Lq_all           = " + FloatToStrF(Lq_all,            ffFixed, 7, 4) + "  (= mean total waiting in system)\n";
-	out += "Lq_avg_per_sensor= " + FloatToStrF(Lq_avg_per_sensor, ffFixed, 7, 4) + "  (= mean queue size per sensor)\n";
+    out += "Lq_all            = " + FloatToStrF(Lq_all,            ffFixed, 7, 4) + "  <-- mean total queue size (system)\n";
+    out += "Lq_avg_per_sensor = " + FloatToStrF(Lq_avg_per_sensor, ffFixed, 7, 4) + "  <-- mean queue size per sensor\n";
+    out += "Wq_all            = " + FloatToStrF(Wq_all,            ffFixed, 7, 4) + "  (Little: Lq_all / (S/T))\n";
 
-    // Rates
-	out += "lambda_off       = " + FloatToStrF(lam_off,  ffFixed, 7, 4) + " = offered arrival rate = A/T \n";
-	out += "lambda_car       = " + FloatToStrF(lam_car,  ffFixed, 7, 4) + "  (= throughput) = S/T \n";
+    out += "L_all             = " + FloatToStrF(L_all,             ffFixed, 7, 4) + "  <-- mean system size (waiting + in-service)\n";
+    out += "W_all             = " + FloatToStrF(W_all,             ffFixed, 7, 4) + "  (Little: L_all / (S/T))\n";
 
-	// Mean waiting time (system)
-    out += "Wq_all           = " + FloatToStrF(Wq_all,   ffFixed, 7, 4) + "  (Little: Lq_all / lambda_car)\n";
-
-	// HAP & charging utilizations
-    out += "TX busy          = " + FloatToStrF(txBusy,   ffFixed, 7, 4) + "  (fraction of time HAP transmits)\n";
-    out += "avg charging     = " + FloatToStrF(avgCharg, ffFixed, 7, 4) + "  (avg # of sensors charging)\n";
-
-    // Mean system size/time (system)
-    out += "L_all            = " + FloatToStrF(L_all,    ffFixed, 7, 4) + "  (= mean system size: waiting + in-service)\n";
-    out += "W_all            = " + FloatToStrF(W_all,    ffFixed, 7, 4) + "  (Little: L_all / lambda_car)\n";
-
-	// Flow conservation check
-    out += "A ?= D + S + B   →  " + IntToStr((int)A) + " ?= " + IntToStr((int)(D+S+B)) + "\n";
-    out += "(Shared-HAP w/ FDM charging; no simple closed form)\n";
     return out;
 }
 
@@ -754,13 +651,48 @@ AnsiString Master::dumpLogWithSummary() const {
     sl->Add("# Run header");
     sl->Add( AnsiString("T=") + f2(now,2)
            + ", tau=" + f2(switchover,3)
-           + ", slots=" + IntToStr(maxChargingSlots)
            + ", N=" + IntToStr(sensors ? (int)sensors->size() : 0) );
     sl->Add("");
 
+    // ===== Meeting-style Summary (static params only) =====
+    if (sensors && !sensors->empty()) {
+        const Sensor* s0 = (*sensors)[0];
+
+        // Arrival rate (parameter or implied)
+        double itMean = -1.0, lam = -1.0;
+        if (s0->ITdistri == DIST_EXPONENTIAL && s0->ITpara1 > 0) lam = s0->ITpara1;
+        else {
+            if (s0->ITdistri == DIST_NORMAL)   itMean = s0->ITpara1;
+            if (s0->ITdistri == DIST_UNIFORM)  itMean = 0.5*(s0->ITpara1 + s0->ITpara2);
+            if (itMean > 0) lam = 1.0 / itMean;
+        }
+
+        // Service rate (parameter or implied)
+        double stMean = -1.0, mu = -1.0;
+        if (s0->STdistri == DIST_EXPONENTIAL && s0->STpara1 > 0) mu = s0->STpara1;
+        else {
+            if (s0->STdistri == DIST_NORMAL)   stMean = s0->STpara1;
+            if (s0->STdistri == DIST_UNIFORM)  stMean = 0.5*(s0->STpara1 + s0->STpara2);
+            if (stMean > 0) mu = 1.0 / stMean;
+        }
+
+        sl->Add("# Summary");
+        sl->Add("DP:");
+        sl->Add("  buffer size   = " + AnsiString(s0->Qmax));
+        if (lam > 0) sl->Add("  arrival rate  = " + f2(lam,3));
+        if (mu  > 0) sl->Add("  service rate  = " + f2(mu,3));
+
+        sl->Add("EP:");
+        sl->Add("  capacity      = " + AnsiString(s0->E_cap));
+        sl->Add("  charging rate = " + f2(s0->charge_rate,3));
+        sl->Add("  R (EP/sec)    = " + f2(s0->txCostPerSec,3));
+        sl->Add("  threshold     = " + AnsiString(s0->r_tx));
+        sl->Add("");
+    }
+
     sl->Add("# === Timeline ===");
     for (size_t i=0;i<timeline.size();++i) sl->Add(timeline[i]);
-	sl->Add("");
+    sl->Add("");
 
     AnsiString out = sl->Text;
     delete sl;
