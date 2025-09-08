@@ -68,6 +68,13 @@ object Form5: TForm5
     Width = 3
     Height = 13
   end
+  object leftPanel: TLabel
+    Left = 30
+    Top = 160
+    Width = 45
+    Height = 13
+    Caption = 'LeftPanel'
+  end
   object sensorAmountEdit: TEdit
     Left = 120
     Top = 21

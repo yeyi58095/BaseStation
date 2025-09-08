@@ -779,3 +779,46 @@ void Master::startChargeToFull(int sid) {  // this funciton will be triggered on
 	felPush(now + dt, EV_CHARGE_STEP, sid);
 }
 
+
+AnsiString Master::leftPanelSummary() const {
+    TStringList* sl = new TStringList();
+
+    const int N = (sensors ? (int)sensors->size() : 0);
+    const double T = now;
+
+    // 防呆
+    if (N == 0 || T <= 0.0) {
+        sl->Add("No sensors or T=0.");
+        AnsiString out = sl->Text; delete sl; return out;
+    }
+
+    // 匯總 A, D, S 與 ∑Q 的時間積分
+    long long A_tot = 0, D_tot = 0, S_tot = 0;
+    double sumQtot = 0.0;
+    for (int i = 0; i < N; ++i) {
+        const Sensor* s = (*sensors)[i];
+        A_tot   += arrivals[i];
+        D_tot   += s->drops;
+        S_tot   += served[i];
+        sumQtot += sumQ[i];
+    }
+
+    // 指標計算
+    const double Lq_all  = sumQtot / T;                         // DP Queuing Size（全系統平均等待佇列）
+    const double Wq_all  = (S_tot > 0) ? (Lq_all / ((double)S_tot / T)) : 0.0;  // DP Waiting time（Little's law）
+    const double loss_all= (A_tot > 0) ? ((double)D_tot / (double)A_tot) : 0.0; // DP Loss rate
+    const double EP_mean_per_sensor =
+        (N > 0) ? ((T > 0 ? (sumE_tot / (T * N)) : 0.0)) : 0.0;                 // EP Capacity Mean（時間平均、每感測器）
+
+    // 輸出（你可以依喜好調整文案或小數位）
+    sl->Add("=== Summary ===");
+    sl->Add("DP Queuing Size  : " + FloatToStrF(Lq_all, ffFixed, 7, 4));
+	sl->Add("DP Waiting time (Wq): " + FloatToStrF(Wq_all, ffFixed, 7, 4));
+    sl->Add("DP Loss rate     : " + FloatToStrF(loss_all, ffFixed, 7, 4));
+    sl->Add("EP Capacity Mean : " + FloatToStrF(EP_mean_per_sensor, ffFixed, 7, 4));
+
+	AnsiString out = sl->Text;
+    delete sl;
+    return out;
+}
+

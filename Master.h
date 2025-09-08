@@ -132,6 +132,8 @@ public: // logger
 
 	int needEPForHead(int sid) const;      // 目前先回傳 r_tx，之後你要做「跟 ST 有關」可在這裡改
 	void startChargeToFull(int sid);       // 抽成一個函式：排一段「補到滿」的充電
+	AnsiString leftPanelSummary() const;
+
 };
 
 } // namespace sim

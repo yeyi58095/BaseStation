@@ -48,6 +48,7 @@ __published:	// IDE-managed Components
 	TCheckBox *ckbRtx;
 	TCheckBox *ckbEP;
 	TButton *setParaButton;
+	TLabel *leftPanel;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);

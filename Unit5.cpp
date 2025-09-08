@@ -170,6 +170,9 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	this->DebugLabel->Caption = "" ;
 	msg = master.reportAll();
 	this->log->Caption = msg;
+
+	AnsiString s = master.leftPanelSummary();
+	this->leftPanel->Caption = s;
 }
 //---------------------------------------------------------------------------
 
@@ -300,8 +303,8 @@ void __fastcall TForm5::ckbRtxClick(TObject *Sender)
 {
 	this->SeriesThreshold->Active = this->ckbRtx->Checked;
 	if(Form5->selectVisitComboBox->ItemIndex == 0){
-	Form5->SeriesEP->Active = false;
-	Form5->ckbEP->Checked = false;
+	///Form5->SeriesEP->Active = false;
+	//Form5->ckbEP->Checked = false;
 
 	Form5->SeriesThreshold->Active = false;
 	Form5->ckbRtx->Checked = false;}
@@ -324,5 +327,6 @@ void __fastcall TForm5::setParaButtonClick(TObject *Sender)
 	setAllPara->Show();
 }
 //---------------------------------------------------------------------------
+
 
 
