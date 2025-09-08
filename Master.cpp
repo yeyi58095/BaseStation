@@ -188,7 +188,7 @@ void Master::run() {
 			{ double dt = s->sampleIT(); if (dt <= EPS) dt = EPS; // setting the time interval that next event will arrive
 			  felPush(now + dt, EV_DP_ARRIVAL, sid); }            // pushing that time, event, and id to FEL
 
-			felPush(now + EPS, EV_HAP_POLL, -1); // re-poll soon so that scheduling gets refreshed
+			felPush(now, EV_HAP_POLL, -1); // re-poll soon so that scheduling gets refreshed
 			logSnapshot(now, "after ARRIVAL");
 			break;
 		}
@@ -207,7 +207,7 @@ void Master::run() {
 
 			hapTxBusy = false; hapTxSid = -1;   // label it as it is available to service
 
-			felPush(now + EPS, EV_HAP_POLL, -1);  //
+			felPush(now , EV_HAP_POLL, -1);  //
 			logSnapshot(now, "after END_TX");
 			break;
 		}
@@ -283,7 +283,7 @@ void Master::run() {
 
 
 				// 也讓排程看看是不是已經 >= r_tx 可以開傳
-				felPush(now + EPS, EV_HAP_POLL, -1);
+				felPush(now , EV_HAP_POLL, -1);
 				logSnapshot(now, "after CHARGE_TICK");
 			}
 			break;
