@@ -7,6 +7,7 @@
 #include "RandomVar.h"
 #include "Sensor.h"
 #include "ChooseITorST.h"
+#include "setAllParaDialog.h"
 
 #include "Person.h"
 //#include "MMEngine.h"
@@ -29,6 +30,7 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	this->DebugLabel->Caption = "";
 	sensorAmount = 1;
 	Form5->selectSensorComboBox->ItemIndex = 0;
+	this->generatorButton->Visible = false;
 
 	// for plot
 		// ¥ª¶b¡GQueue
@@ -67,6 +69,7 @@ void __fastcall TForm5::sensorAmountEditChange(TObject *Sender)
 	if(sensorAmount >= 4){
 		master.logStateEachEvent = false;
 	}
+	this->generatorButtonClick(NULL);
 }
 //---------------------------------------------------------------------------
 
@@ -141,7 +144,6 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 	this->Dubug->Caption = "Run";
 	rv::reseed(12345);
 
-
 	master.run();
 
 	runned = true;
@@ -157,7 +159,7 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 		master.logStateEachEvent = false;
 	}else{
 		master.logStateEachEvent = true;
-    }
+	}
 
 	AnsiString text = master.dumpLogWithSummary();
 	SaveMsgToFile(text, "run_log.txt");
@@ -314,19 +316,9 @@ void __fastcall TForm5::ckbEPClick(TObject *Sender)
 	Form5->ckbRtx->Checked = false;}
 }
 //---------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+void __fastcall TForm5::setParaButtonClick(TObject *Sender)
+{
+	setAllPara->Show();
+}
+//---------------------------------------------------------------------------
 

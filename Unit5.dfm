@@ -87,8 +87,8 @@ object Form5: TForm5
     OnClick = generatorButtonClick
   end
   object selectSensorComboBox: TComboBox
-    Left = 32
-    Top = 43
+    Left = 127
+    Top = 46
     Width = 145
     Height = 21
     TabOrder = 2
@@ -230,5 +230,14 @@ object Form5: TForm5
     Caption = 'ckbEP'
     TabOrder = 13
     OnClick = ckbEPClick
+  end
+  object setParaButton: TButton
+    Left = 30
+    Top = 43
+    Width = 84
+    Height = 24
+    Caption = 'setParaButton'
+    TabOrder = 14
+    OnClick = setParaButtonClick
   end
 end

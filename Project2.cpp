@@ -1,4 +1,4 @@
-//---------------------------------------------------------------------------
+﻿//---------------------------------------------------------------------------
 
 #include <vcl.h>
 #pragma hdrstop
@@ -9,6 +9,7 @@ USEFORM("ChooseMethodDialog.cpp", methodChooser);
 USEFORM("ChooseITorST.cpp", Chooser);
 USEFORM("CharterDialog.cpp", Charter);
 USEFORM("ParaSetterDialog.cpp", parameterSetter);
+USEFORM("setAllParaDialog.cpp", Form1);
 //---------------------------------------------------------------------------
 int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 {
@@ -21,6 +22,7 @@ int WINAPI _tWinMain(HINSTANCE, HINSTANCE, LPTSTR, int)
 		Application->CreateForm(__classid(TChooser), &Chooser);
 		Application->CreateForm(__classid(TmethodChooser), &methodChooser);
 		Application->CreateForm(__classid(TparameterSetter), &parameterSetter);
+		Application->CreateForm(__classid(TForm1), &Form1);
 		Application->Run();
 	}
 	catch (Exception &exception)

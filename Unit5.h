@@ -47,6 +47,7 @@ __published:	// IDE-managed Components
 	TCheckBox *ckbMean;
 	TCheckBox *ckbRtx;
 	TCheckBox *ckbEP;
+	TButton *setParaButton;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);
@@ -60,6 +61,7 @@ __published:	// IDE-managed Components
 	void __fastcall ckbMeanClick(TObject *Sender);
 	void __fastcall ckbRtxClick(TObject *Sender);
 	void __fastcall ckbEPClick(TObject *Sender);
+	void __fastcall setParaButtonClick(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);
