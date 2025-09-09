@@ -49,6 +49,7 @@ __published:	// IDE-managed Components
 	TCheckBox *ckbEP;
 	TButton *setParaButton;
 	TLabel *leftPanel;
+	TRadioGroup *LogMode;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);
@@ -63,6 +64,7 @@ __published:	// IDE-managed Components
 	void __fastcall ckbRtxClick(TObject *Sender);
 	void __fastcall ckbEPClick(TObject *Sender);
 	void __fastcall setParaButtonClick(TObject *Sender);
+	void __fastcall LogModeClick(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);

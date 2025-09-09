@@ -247,4 +247,16 @@ object Form5: TForm5
     TabOrder = 14
     OnClick = setParaButtonClick
   end
+  object LogMode: TRadioGroup
+    Left = 303
+    Top = 50
+    Width = 79
+    Height = 52
+    Caption = 'LogMode'
+    Items.Strings = (
+      'CSV'
+      'Human')
+    TabOrder = 15
+    OnClick = LogModeClick
+  end
 end

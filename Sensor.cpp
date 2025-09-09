@@ -180,11 +180,12 @@ AnsiString Sensor::queueToStr() const {
 
 void Sensor::resetDynamic() {
     q.clear();
-    drops   = 0;
-    serving = false;
-    servingId = -1;
-    pktSeq  = 0;
+	drops   = 0;
 
+	serving = false;
+	servingId = -1;
+	pktSeq  = 0;
+	energy = 0;
     if (energy < 0) energy = 0;
     if (energy > E_cap) energy = E_cap;
 

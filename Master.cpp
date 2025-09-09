@@ -497,7 +497,7 @@ AnsiString Master::reportOne(int sid) const {
     double loss   = (A > 0) ? ((double)D / (double)A) : 0.0;
 
     out += "Sensor " + IntToStr(sid+1) + "\n";
-    out += "T                 = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
+	out += "simulation Time   = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
     out += "arrivals(A)       = " + IntToStr(A) + "\n";
     out += "loss_rate         = " + FloatToStrF(loss, ffFixed, 7, 4) + "  (= D/A)\n";
     out += "Lq_hat            = " + FloatToStrF(Lq_hat, ffFixed, 7, 4) + "  <-- mean queue size\n";
@@ -529,7 +529,7 @@ AnsiString Master::reportAll() const {
     }
 
     double Lq_all            = (T > 0) ? (sumQtot / T) : 0.0;
-    double Lq_avg_per_sensor = (N > 0) ? (Lq_all / N) : 0.0;
+	double Lq_avg_per_sensor = (N > 0) ? (Lq_all / N) : 0.0;
     double thr               = (T > 0) ? ( (S > 0) ? ((double)S / T) : 0.0 ) : 0.0;
 	double Wq_all            = (thr > 0) ? (Lq_all / thr) : 0.0;
     double L_all             = (T > 0) ? ((sumQtot + busySumTx) / T) : 0.0;
@@ -537,8 +537,8 @@ AnsiString Master::reportAll() const {
     double loss_all          = (A > 0) ? ((double)D / (double)A) : 0.0;
 
     out += "=== Overall (All sensors) ===\n";
-    out += "N                 = " + IntToStr(N) + "\n";
-    out += "T                 = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
+	out += "number of senseor = " + IntToStr(N) + "\n";
+	out += "simulaton Time    = " + FloatToStrF(T, ffFixed, 7, 2) + "\n";
     out += "arrivals(A)       = " + IntToStr((int)A) + "\n";
     out += "loss_rate         = " + FloatToStrF(loss_all, ffFixed, 7, 4) + "  (= D/A)\n";
 

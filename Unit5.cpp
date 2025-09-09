@@ -31,6 +31,9 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	sensorAmount = 1;
 	Form5->selectSensorComboBox->ItemIndex = 0;
 	this->generatorButton->Visible = false;
+	this->LogMode->ItemIndex = 0;
+	this->plotButton->Caption = "reZoom";
+	this->leftPanel->Caption = "";
 
 	// for plot
 		// 左軸：Queue
@@ -173,6 +176,8 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 
 	AnsiString s = master.leftPanelSummary();
 	this->leftPanel->Caption = s;
+
+	this->plotButtonClick(NULL);
 }
 //---------------------------------------------------------------------------
 
@@ -258,7 +263,17 @@ void PlotTraceOne(int sid) {
 
 void __fastcall TForm5::plotButtonClick(TObject *Sender)
 {
-		 PlotTraceAll(true);
+		     // 一直退到完全沒有縮放
+    while (Chart1->Zoomed) {
+        Chart1->UndoZoom();
+    }
+
+    // 保險：把座標軸設回自動（避免有手動最小/最大殘留）
+    Chart1->BottomAxis->Automatic = true;
+    Chart1->LeftAxis->Automatic   = true;
+    // 如果有用右軸/上軸也一併設定
+    Chart1->RightAxis->Automatic  = true;
+	Chart1->TopAxis->Automatic    = true;
 }
 //---------------------------------------------------------------------------
 
@@ -329,4 +344,14 @@ void __fastcall TForm5::setParaButtonClick(TObject *Sender)
 //---------------------------------------------------------------------------
 
 
+
+void __fastcall TForm5::LogModeClick(TObject *Sender)
+{
+	  if (this->LogMode->ItemIndex == 0) {
+		master.logMode = master.LogMode::LOG_CSV;
+	} else {
+		master.logMode = master.LogMode::LOG_HUMAN;
+	}
+}
+//---------------------------------------------------------------------------
 
