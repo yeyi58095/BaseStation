@@ -41,3 +41,6 @@ __recovery/
 .DS_Store
 Thumbs.db
 !Win32/Debug/Project2.exe
+# Python venv
+.venv/
+venv/
