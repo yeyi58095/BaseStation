@@ -283,22 +283,22 @@ void TReplay::BuildEventsCacheFromDump()
     TStringList* sl = new TStringList();
     sl->Text = dump;
 
-    int i;
-    for (i = 0; i < sl->Count; ++i) {
+    for (int i = 0; i < sl->Count; ++i) {
         AnsiString line = sl->Strings[i].Trim();
-        if (line.Length() < 3) continue;
-        if (!(line.SubString(1,2) == "t=")) continue;
+        if (line.IsEmpty()) continue;
 
-        double tt = ParseLeadingTime(line);
-        if (tt < 0.0) continue;
+        // 只吃以 "t=" 開頭的 timeline 行；# Summary / STATE / STAT 都跳過
+        if (line.Pos("t=") != 1) continue;
+        if (line.Pos(" STATE ") > 0) continue;  // "STATE after ..." 不吃
+        if (line.Pos(" STAT") > 0)  continue;   // CSV 的 STAT 也不吃
 
+        // 事件時間
+        double t = ParseLeadingTime(line);
+        if (t < 0) continue;
+
+        // 判斷事件種類
         AnsiString typ = DetectEventType(line);
-        if (typ == "STATE" || typ == "STAT") continue; // 回放不吃
-
-        int sid = ParseIntAfter(line, "sensor=", -1);
-        int pid = ParseIntAfter(line, "pkg=", -1);
-
-        int kind = 8; // UNKNOWN
+        int kind = 8;
         if (typ == "ARR") kind = 0;
         else if (typ == "START_TX") kind = 1;
         else if (typ == "TX_TICK")  kind = 2;
@@ -306,28 +306,103 @@ void TReplay::BuildEventsCacheFromDump()
         else if (typ == "DROP")     kind = 4;
         else if (typ == "CHARGE_START") kind = 5;
         else if (typ == "CHARGE_END")   kind = 6;
+        else continue; // 其它不吃
 
-        evtT.push_back(tt);
+        // 通用欄位
+        int sid = ParseIntAfter(line, "sensor=", -1);
+        int pid = ParseIntAfter(line, "pkg=",    -1);
+        int q   = -1;
+        int ep  = -1;
+        double x1 = 0.0, x2 = 0.0;
+
+        // 依事件類型補齊欄位
+        if (kind == 0) { // ARR: "... ARRIVAL      Q=1  EP=4"
+            q  = ParseIntAfter(line, "Q=",  -1);
+            ep = ParseIntAfter(line, "EP=", -1);
+        }
+        else if (kind == 1) { // START_TX: "st=0.466  EP_before=5  cost=1"
+            x1 = StrToFloatDef(AnsiString(ParseIntAfter(line, "st=", -99999)), -99999); // 先保留數值，下一行補更準確
+            // st 可能是小數 → 用 float 解析
+            int p = line.Pos("st=");
+            if (p > 0) {
+                int s = p + 3, e = s;
+                while (e <= line.Length()) {
+                    WideChar ch = line[e];
+                    if ((ch >= '0' && ch <= '9') || ch == '.' || ch == '-') e++;
+                    else break;
+                }
+                x1 = StrToFloatDef(line.SubString(s, e - s), 0.0);    // st
+            }
+            ep = ParseIntAfter(line, "EP_before=", -1);               // 事件前 EP
+            x2 = ParseIntAfter(line, "cost=", 0);                     // cost (整數)
+        }
+        else if (kind == 2) { // TX_TICK: "... TX_TICK ... EP=5  remain=..."
+            ep = ParseIntAfter(line, "EP=", -1);
+            x1 = ParseIntAfter(line, "remain=", 0);
+        }
+        else if (kind == 3) { // END_TX: "... END_TX ... Q=0  EP=4"
+            q  = ParseIntAfter(line, "Q=",  -1);
+            ep = ParseIntAfter(line, "EP=", -1);
+        }
+        else if (kind == 4) { // DROP: "... DROP   Q=1/10  EP=3"（Human 版可能只看到 EP）
+            ep = ParseIntAfter(line, "EP=", -1);
+        }
+        else if (kind == 5) { // CHARGE_START: "... CHARGE_START need=100  active=1/inf"
+            x1 = ParseIntAfter(line, "need=", 0);
+            // active/cap 目前 UI 不用，略過
+        }
+        else if (kind == 6) { // CHARGE_END: "... CHARGE_END   +1EP  EP=5"
+            ep = ParseIntAfter(line, "EP=", -1);
+            int pplus = line.Pos("+");
+            if (pplus > 0) {
+                int s = pplus + 1, e = s;
+                while (e <= line.Length() && line[e] >= '0' && line[e] <= '9') e++;
+                x1 = StrToIntDef(line.SubString(s, e - s), 0); // 本次充了幾格
+            }
+        }
+
+        // 沒抓到 sid/pid 的 ARR/START/END → 代表 parser 失敗，跳過避免出現 "All/HAP — ARR (pkg=-1)"
+        if ((kind == 0 || kind == 1 || kind == 3) && sid < 0)
+            continue;
+
+        // 寫入事件陣列
+        evtT.push_back(t);
         evtKind.push_back(kind);
         evtSid.push_back(sid);
         evtPid.push_back(pid);
-        evtQ.push_back(-1);     // Human 無 q/ep 欄，交由狀態推
-        evtEP.push_back(-1);
-        evtX1.push_back(0.0);
-        evtX2.push_back(0.0);
+        evtQ.push_back(q);
+        evtEP.push_back(ep);
+        evtX1.push_back(x1);
+        evtX2.push_back(x2);
 
-        // 可留一份簡短文字（非必要）
-        AnsiString who = (sid >= 0) ? (AnsiString("Sensor ") + IntToStr(sid+1)) : AnsiString("All/HAP");
+        AnsiString who = (sid >= 0) ? (AnsiString("Sensor ") + IntToStr(sid + 1)) : AnsiString("All/HAP");
         AnsiString msg = who + " — " + typ;
         if (pid >= 0) msg += "  (pkg=" + IntToStr(pid) + ")";
         evtMsg.push_back(msg);
     }
     delete sl;
 
+    // Human dump 本來就按時間輸出，保險起見做一次穩定插入排序
+    int n = (int)evtT.size();
+    for (int i = 1; i < n; ++i) {
+        double   t = evtT[i];   int k = evtKind[i], sid = evtSid[i], pid = evtPid[i];
+        int      q = evtQ[i],   ep = evtEP[i];
+        double   x1 = evtX1[i], x2 = evtX2[i];
+        AnsiString m = evtMsg[i];
+        int j = i - 1;
+        while (j >= 0 && evtT[j] > t) {
+            evtT[j+1]=evtT[j]; evtKind[j+1]=evtKind[j]; evtSid[j+1]=evtSid[j];
+            evtPid[j+1]=evtPid[j]; evtQ[j+1]=evtQ[j]; evtEP[j+1]=evtEP[j];
+            evtX1[j+1]=evtX1[j]; evtX2[j+1]=evtX2[j]; evtMsg[j+1]=evtMsg[j];
+            --j;
+        }
+        evtT[j+1]=t; evtKind[j+1]=k; evtSid[j+1]=sid; evtPid[j+1]=pid;
+        evtQ[j+1]=q; evtEP[j+1]=ep; evtX1[j+1]=x1; evtX2[j+1]=x2; evtMsg[j+1]=m;
+    }
+
     hasEvents = !evtT.empty();
     nextEventIdx = 0;
     S.clear();
-    // 事件按時間已經有序（dump 原本就是照時間），若有需要可做穩定排序
 }
 
 void TReplay::BuildEventsFromCSV()
