@@ -34,6 +34,9 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	this->LogMode->ItemIndex = 0;
 	this->plotButton->Caption = "reZoom";
 	this->leftPanel->Caption = "";
+	this->Label5->Visible = false;
+	this->maxCharginSlotEdit->Visible = false;
+	this->Label6->Visible = false;
 
 	// for plot
 		// ¥ª¶b¡GQueue
@@ -354,4 +357,7 @@ void __fastcall TForm5::LogModeClick(TObject *Sender)
 	}
 }
 //---------------------------------------------------------------------------
+
+
+
 

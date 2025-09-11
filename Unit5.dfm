@@ -16,9 +16,9 @@ object Form5: TForm5
   object Label1: TLabel
     Left = 32
     Top = 24
-    Width = 73
+    Width = 65
     Height = 13
-    Caption = 'Sensor Amount'
+    Caption = 'no. of Sensor'
   end
   object DebugLabel: TLabel
     Left = 416
@@ -35,11 +35,11 @@ object Form5: TForm5
     Caption = 'Visit Which'
   end
   object Label3: TLabel
-    Left = 65
-    Top = 70
-    Width = 40
+    Left = 33
+    Top = 73
+    Width = 72
     Height = 13
-    Caption = 'endTime'
+    Caption = 'simulation Time'
   end
   object Label4: TLabel
     Left = 51
