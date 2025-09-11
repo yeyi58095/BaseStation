@@ -122,7 +122,7 @@ object Form5: TForm5
   end
   object Chart1: TChart
     Left = 303
-    Top = 97
+    Top = 108
     Width = 400
     Height = 250
     Title.Text.Strings = (
@@ -258,5 +258,14 @@ object Form5: TForm5
       'Human')
     TabOrder = 15
     OnClick = LogModeClick
+  end
+  object replayButton: TButton
+    Left = 720
+    Top = 333
+    Width = 75
+    Height = 25
+    Caption = 'replay'
+    TabOrder = 16
+    OnClick = replayButtonClick
   end
 end

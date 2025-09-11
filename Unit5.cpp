@@ -8,6 +8,7 @@
 #include "Sensor.h"
 #include "ChooseITorST.h"
 #include "setAllParaDialog.h"
+#include "ReplayDialog.h"
 
 #include "Person.h"
 //#include "MMEngine.h"
@@ -360,4 +361,10 @@ void __fastcall TForm5::LogModeClick(TObject *Sender)
 
 
 
+
+void __fastcall TForm5::replayButtonClick(TObject *Sender)
+{
+	Replay->Show();
+}
+//---------------------------------------------------------------------------
 
