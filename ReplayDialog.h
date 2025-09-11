@@ -14,6 +14,15 @@
 #include <VCLTee.TeEngine.hpp>
 #include <VCLTee.TeeProcs.hpp>
 //---------------------------------------------------------------------------
+
+struct ReplayEvent {
+    double t;
+    int    sid;       // -1 表示無 sid（例如 All/STAT）
+    int    pid;       // 封包id；未知用 -1
+    AnsiString type;  // "ARR","START_TX","TX_TICK","END_TX","DROP","CHARGE_START","CHARGE_END","STATE","STAT"
+    AnsiString text;  // 原始行或短敘述
+};
+
 class TReplay : public TForm
 {
 __published:	// IDE-managed Components
@@ -32,20 +41,29 @@ private:	// User declarations
     bool epAverage;        // true=EP 用 avg，false=EP 用 sum
 
     // 事件快取（從 dumpLogWithSummary() 解析）
-    std::vector<double>     evtT;
+	std::vector<double>     evtT;
     std::vector<AnsiString> evtMsg;
-    bool hasEvents;         // 是否有解析到事件（LOG_HUMAN 時為真）
+	bool hasEvents;         // 是否有解析到事件（LOG_HUMAN 時為真）
+
+	std::vector<ReplayEvent> events;
+
 
     // 初始化與繪圖
     void InitChart();
     void BeginReplayAll(bool useAvg);
     void DrawToIndex(int k);        // 把圖畫到第 k 幀
-    void AppendPoint(int i);        // 只加一點（加速用）
+	void AppendPoint(int i);        // 只加一點（加速用）
     void UpdateLabelForTime(double t, int k);
 
     // 建事件快取（LOG_HUMAN 時）
-    void BuildEventsCacheFromDump();
+	void BuildEventsCacheFromDump();
+	void BuildEventsFromCSV()         ;
 	static double ParseLeadingTime(const AnsiString& line); // 解析 "t=xx" 時間
+
+	static int    ParseIntAfter(const AnsiString& line, const AnsiString& key, int defVal);
+	static AnsiString DetectEventType(const AnsiString& line);
+    int  FindLastEventIndexLE(double tNow) const;
+	void SetLabelFromEvent(const ReplayEvent& ev, double tNow, int frameIdx);
 public:		// User declarations
 	__fastcall TReplay(TComponent* Owner);
 };
