@@ -106,6 +106,8 @@ private:	// User declarations
 	// 事件是否已經輸出過
 	std::vector<char> evUsed;
 
+
+	bool EmitOneEventAtCurrentFrame();
 public:		// User declarations
 	__fastcall TReplay(TComponent* Owner);
 };

@@ -158,77 +158,36 @@ void TReplay::BeginReplayAll(bool useAvg)
 void __fastcall TReplay::btnStepClick(TObject *Sender)
 {
     const std::vector<double>& tAll = master.traceT_all;
-    if (tAll.empty()) { lblInfo->Caption = "No trace data. Run simulation first."; return; }
+    if (tAll.empty()) {
+        lblInfo->Caption = "No trace data. Run simulation first.";
+        return;
+    }
     if (curIdx < 0) curIdx = 0;
 
-    // 畫到目前幀
-    DrawToIndex(curIdx);
-    double tNow = tAll[curIdx];
+    // 為避免極端情況，設個保護上限
+    int guard = 0, GUARD_MAX = (int)tAll.size() + (int)evtT.size() + 8;
 
-    // 先嘗試吐出「這一幀」的尚未輸出的事件（一次只吐一筆）
-    if (hasEvents && curIdx < (int)frameEv.size()) {
-        std::vector<int>& bucket = frameEv[curIdx];
-
-        int p;
-        for (p = 0; p < (int)bucket.size(); ++p) {
-            int evIdx = bucket[p];
-            if (!evUsed[evIdx]) {
-                // 1) 套用事件（更新狀態、得到事件行）
-                AnsiString line = ApplyAndFormatEvent(evIdx);
-                evUsed[evIdx] = 1;
-
-				// 2) 用「事件後」的 Q/EP 重建標頭（讓上方數字與事件一致）
-				// ...已有：AnsiString line = ApplyAndFormatEvent(evIdx);  // 這步會更新 S[sid].ep
-				int sid    = evtSid[evIdx];
-				int qAfter = (evtQ[evIdx]  >= 0) ? evtQ[evIdx]  : (int)S[sid].q.size();
-				int epAfter= (evtEP[evIdx] >= 0) ? evtEP[evIdx] : S[sid].ep;
-
-				// 仍用 trace 當 MeanQ、也保留 EP 曲線作為底
-				double meanQ = master.traceMeanQ_all[curIdx];
-
-				// ★ 這裡是關鍵：單一 sensor 直接用事件後的 EP 當 EP_avg
-				double epHeader;
-				int N = (master.sensors ? (int)master.sensors->size() : 1);
-				if (N == 1 && sid >= 0) {
-					epHeader = (double)epAfter;             // 單 sensor：EP_avg = 該 sensor EP（事件後）
-				} else {
-					// 多 sensor 時，先用 trace 當底，再用可推得的 delta 微調（可選）
-					double epTrace = epAverage
-						? ((curIdx < (int)master.traceEavg_all.size()) ? master.traceEavg_all[curIdx] : 0.0)
-						: ((curIdx < (int)master.traceE_all.size())     ? master.traceE_all[curIdx]     : 0.0);
-
-					int delta = 0;
-					if (evtKind[evIdx] == 2) {          // TTK: 每 tick 扣 1
-						delta = -1;
-					} else if (evtKind[evIdx] == 6) {   // CEND: x1 是充進去的 EP 數
-						delta = (int)evtX1[evIdx];
-					}
-					epHeader = epTrace + (epAverage ? ((double)delta)/N : (double)delta);
-				}
-
-				// 重建標頭（用 qAfter / epHeader）
-				AnsiString header =
-					"t=" + FloatToStrF(tNow, ffFixed, 7, 3) +
-					"   frame=" + IntToStr(curIdx) +
-					"\nQ=" + FloatToStrF(qAfter, ffFixed, 7, 3) +
-					"  MeanQ=" + FloatToStrF(meanQ,  ffFixed, 7, 3) +
-					(epAverage ? "  EP_avg=" : "  EP_sum=") +
-					FloatToStrF(epHeader, ffFixed, 7, 3);
-
-				lblInfo->Caption = header + "\n" + line;
-				return;
-
-            }
-        }
-    }
-
-    // 這一幀沒有事件、或已吐完 → 移到下一幀
-    if (curIdx < (int)tAll.size() - 1) {
-        curIdx++;
+    while (guard++ < GUARD_MAX) {
+        // 先把圖畫到目前幀
         DrawToIndex(curIdx);
-    } else {
+
+        // 嘗試在「目前幀」吐一筆事件；成功就結束這次點擊
+        if (EmitOneEventAtCurrentFrame())
+            return;
+
+        // 本幀沒有事件或都吐完 → 若還有下一幀就前進，繼續找直到吐出一筆事件或到結尾
+        if (curIdx < (int)tAll.size() - 1) {
+            curIdx++;
+            continue;
+        }
+
+        // 走到尾了也沒事件可吐
         lblInfo->Caption = lblInfo->Caption + "\n(End)";
+        return;
     }
+
+    // 安全保護：理論上不會到這
+    lblInfo->Caption = lblInfo->Caption + "\n(guard hit)";
 }
 
 void TReplay::DrawToIndex(int k)
@@ -671,4 +630,62 @@ AnsiString TReplay::ApplyAndFormatEvent(int idx)
     return line;
 }
 
+
+bool TReplay::EmitOneEventAtCurrentFrame()
+{
+    if (!hasEvents || curIdx < 0 || curIdx >= (int)frameEv.size())
+        return false;
+
+    std::vector<int>& bucket = frameEv[curIdx];
+
+    for (int p = 0; p < (int)bucket.size(); ++p) {
+        int evIdx = bucket[p];
+        if (!evUsed[evIdx]) {
+            AnsiString line = ApplyAndFormatEvent(evIdx);
+            evUsed[evIdx] = 1;
+
+            // ★ 用事件時間，而不是幀時間
+            double te = evtT[evIdx];
+
+            int sid     = evtSid[evIdx];
+            int qAfter  = (evtQ[evIdx]  >= 0) ? evtQ[evIdx]  : (int)S[sid].q.size();
+            int epAfter = (evtEP[evIdx] >= 0) ? evtEP[evIdx] : S[sid].ep;
+
+            // MeanQ 取「事件當下之前的最近一個 trace 點」來近似
+            int kForMean = curIdx;
+            const std::vector<double>& tAll = master.traceT_all;
+            while (kForMean > 0 && tAll[kForMean] > te + 1e-9) kForMean--;
+            double meanQ = master.traceMeanQ_all.empty() ? 0.0
+                             : master.traceMeanQ_all[kForMean];
+
+            // EP 標頭：單 sensor 直接用事件後 EP
+            double epHeader;
+            int N = (master.sensors ? (int)master.sensors->size() : 1);
+            if (N == 1 && sid >= 0) {
+                epHeader = (double)epAfter;
+            } else {
+                epHeader = epAverage
+                    ? ((curIdx < (int)master.traceEavg_all.size()) ? master.traceEavg_all[curIdx] : 0.0)
+                    : ((curIdx < (int)master.traceE_all.size())     ? master.traceE_all[curIdx]     : 0.0);
+            }
+
+            // ★ 標頭用事件時間 te
+            AnsiString header =
+                "t=" + FloatToStrF(te, ffFixed, 12, 6) +
+                "   frame=" + IntToStr(curIdx) +
+                "\nQ=" + FloatToStrF(qAfter, ffFixed, 12, 6) +
+                "  MeanQ=" + FloatToStrF(meanQ,  ffFixed, 12, 6) +
+                (epAverage ? "  EP_avg=" : "  EP_sum=") +
+                FloatToStrF(epHeader, ffFixed, 12, 6);
+
+            lblInfo->Caption = header + "\n" + line;
+
+            // 若你有右側事件清單，把這行也改成 te：
+            // AppendEventLine( FloatToStrF(te, ffFixed, 12, 6) + "  " + line, color );
+
+            return true;
+        }
+    }
+    return false;
+}
 
