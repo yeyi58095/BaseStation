@@ -2,7 +2,7 @@
 
 #include <vcl.h>
 #pragma hdrstop
-
+#include <math.h> // 或 cmath
 #include "Master.h"
 #include "ReplayDialog.h"
 //---------------------------------------------------------------------------
@@ -12,6 +12,28 @@ TReplay *Replay;
 //---------------------------------------------------------------------------
 
 #include <System.SysUtils.hpp>
+
+
+#include <float.h>   // for _finite
+// #include <math.h> // 若需要其它數學函式再加
+
+// ---- helpers for bcc32 ----
+static bool IsFinite(double x) {
+    // _finite: 非 0 表示是有限數；0 表示 NaN/Inf
+    return _finite(x) != 0;
+}
+
+static int myRound(double x) {
+    // 四捨五入；同時處理負數
+    return (int)(x >= 0.0 ? x + 0.5 : x - 0.5);
+}
+
+template<typename T>
+static T myMax(T a, T b) { return (a > b) ? a : b; }
+
+
+
+
 
 // ===== CSV 解析（無引號處理；你的 CSV 無引號）=====
 static void splitCSV(const AnsiString& line, std::vector<AnsiString>& out) {
@@ -73,11 +95,20 @@ extern Master master;
 __fastcall TReplay::TReplay(TComponent* Owner)
 	: TForm(Owner)
 {
+	runTimer   = NULL;   // 用 nullptr 比 NULL 好
+	isRunning  = false;
+	isStepping = false;
+	stepsPerSec= 5.0;
+	this->edSpeed->Text = 5.0;
+
+
     curIdx = -1;
     lastDrawnIdx = -1;
     epAverage = true;
     hasEvents = false;
+    // 計時器成員在需要時建立
 }
+
 void TReplay::InitChart()
 {
     // 左軸：Queue，右軸：EP
@@ -115,6 +146,9 @@ void __fastcall TReplay::FormShow(TObject *Sender)
 
     // 顯示標題
 	ReplayChart->Title->Caption = epAverage ? "All sensors (EP avg)" : "All sensors (EP sum)";
+
+    // 初始 UI
+    UpdateRunUI();
 }
 //---------------------------------------------------------------------------
 void TReplay::BeginReplayAll(bool useAvg)
@@ -153,14 +187,94 @@ void TReplay::BeginReplayAll(bool useAvg)
     }
 
     DrawToIndex(0);
+    UpdateRunUI();
 }
 
 void __fastcall TReplay::btnStepClick(TObject *Sender)
 {
-    const std::vector<double>& tAll = master.traceT_all;
+    // 若正在播放 → 先停
+    if (isRunning) {
+        StopRun();
+    }
+
+    DoOneStep(false); // 顯示模式
+    UpdateRunUI();
+}
+
+// ====== Start/Stop 單鍵切換 ======
+void __fastcall TReplay::btnStartClick(TObject* Sender)
+{
+	if (isRunning) {
+        StopRun();
+    } else {
+		StartRun();
+    }
+}
+
+void TReplay::EnsureRunTimer() {
+    if (runTimer) return;
+    runTimer = new TTimer(this);
+    runTimer->Enabled = false;
+    runTimer->Interval = 200;              // 預設值，StartRun 會重設
+    runTimer->OnTimer = OnRunTimer;
+}
+
+static double ParseStepsPerSecFromEdit(TEdit* ed, double fallback/*=5.0*/) {
+    double v = StrToFloatDef(ed->Text.Trim(), fallback);
+    if (!IsFinite(v)) v = fallback; // 取代 std::isfinite
+
+    if (v < 0.1)  v = 0.1;   // 下限，避免太慢
+    if (v > 200.) v = 200.;  // 上限，避免 CPU 飆高
+    return v;
+}
+
+
+
+void TReplay::StartRun() {
+	const std::vector<double>& tAll = master.traceT_all;
     if (tAll.empty()) {
         lblInfo->Caption = "No trace data. Run simulation first.";
         return;
+    }
+    if (curIdx < 0) curIdx = 0;
+
+	stepsPerSec = ParseStepsPerSecFromEdit(edSpeed, stepsPerSec);
+	EnsureRunTimer();
+	int interval = myMax(1, myRound(1000.0 / stepsPerSec));
+runTimer->Interval = interval;
+;
+	isRunning = true;
+    runTimer->Enabled = true;
+    UpdateRunUI();
+}
+
+void TReplay::StopRun() {
+    if (runTimer) runTimer->Enabled = false;
+    isRunning = false;
+    UpdateRunUI();
+}
+
+void TReplay::UpdateRunUI() {
+    // 切換 Start/Stop 文字與可按狀態
+    if (isRunning) {
+        btnStart->Caption = "Stop";
+    } else {
+        btnStart->Caption = "Start";
+    }
+    // 邏輯：只要還沒播到尾端，就允許 Start / Step
+    bool hasMore = !master.traceT_all.empty() && curIdx < (int)master.traceT_all.size();
+    btnStart->Enabled = hasMore || isRunning;
+    btnStep->Enabled  = hasMore;
+    edSpeed->Enabled  = !isRunning;
+}
+
+// 封裝「一次單步」的行為，供 Step 按鈕與 Timer 共用
+bool TReplay::DoOneStep(bool silent)
+{
+    const std::vector<double>& tAll = master.traceT_all;
+    if (tAll.empty()) {
+        lblInfo->Caption = "No trace data. Run simulation first.";
+        return false;
     }
     if (curIdx < 0) curIdx = 0;
 
@@ -171,9 +285,10 @@ void __fastcall TReplay::btnStepClick(TObject *Sender)
         // 先把圖畫到目前幀
         DrawToIndex(curIdx);
 
-        // 嘗試在「目前幀」吐一筆事件；成功就結束這次點擊
-        if (EmitOneEventAtCurrentFrame())
-            return;
+        // 嘗試在「目前幀」吐一筆事件；成功就結束這次單步
+        if (EmitOneEventAtCurrentFrame()) {
+            return true;
+        }
 
         // 本幀沒有事件或都吐完 → 若還有下一幀就前進，繼續找直到吐出一筆事件或到結尾
         if (curIdx < (int)tAll.size() - 1) {
@@ -183,12 +298,31 @@ void __fastcall TReplay::btnStepClick(TObject *Sender)
 
         // 走到尾了也沒事件可吐
         lblInfo->Caption = lblInfo->Caption + "\n(End)";
-        return;
+        return false;
     }
 
     // 安全保護：理論上不會到這
     lblInfo->Caption = lblInfo->Caption + "\n(guard hit)";
+    return false;
 }
+
+void __fastcall TReplay::OnRunTimer(TObject* Sender)
+{
+    if (isStepping) return;     // 防 reentrancy
+    isStepping = true;
+    try {
+        // 播放時用 silent 模式減少重繪成本（如需，也可改成 false）
+        bool ok = DoOneStep(/*silent=*/true);
+        if (!ok) {
+            // 到尾或 guard hit → 停止播放
+            StopRun();
+        }
+    } __finally {
+        isStepping = false;
+    }
+}
+
+// ------------------ 既有繪圖與事件處理 ------------------
 
 void TReplay::DrawToIndex(int k)
 {
@@ -233,7 +367,7 @@ void TReplay::DrawToIndex(int k)
 
     lastDrawnIdx = k;
 
-    // 更新上方 Label
+    // 更新上方 Label（播放時 silent 依然維持這個 Head 也沒關係）
     UpdateLabelForTime(t[k], k);
 }
 
@@ -361,7 +495,7 @@ void TReplay::BuildEventsCacheFromDump()
             }
         }
 
-        // 沒抓到 sid/pid 的 ARR/START/END → 代表 parser 失敗，跳過避免出現 "All/HAP — ARR (pkg=-1)"
+        // 沒抓到 sid/pid 的 ARR/START/END → 跳過避免出現 "All/HAP — ARR (pkg=-1)"
         if ((kind == 0 || kind == 1 || kind == 3) && sid < 0)
             continue;
 
@@ -470,7 +604,6 @@ void TReplay::BuildEventsFromCSV()
     delete sl;
 
     // CSV 可能不是穩定時間序，做一下穩定排序（無 lambda 版本）
-    // 用簡單插入排序（資料量通常不大；若很大可改比較函式 + stable_sort）
     int n = (int)evtT.size(), ii, jj;
     for (ii = 1; ii < n; ++ii) {
         double   tkey = evtT[ii];
@@ -763,4 +896,5 @@ bool TReplay::EmitOneEventAtCurrentFrame()
     }
     return false;
 }
+
 

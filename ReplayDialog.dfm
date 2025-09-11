@@ -21,6 +21,13 @@ object Replay: TReplay
     Height = 13
     Caption = 'lblInfo'
   end
+  object Speed: TLabel
+    Left = 464
+    Top = 190
+    Width = 30
+    Height = 13
+    Caption = 'Speed'
+  end
   object ReplayChart: TChart
     Left = 32
     Top = 24
@@ -57,11 +64,28 @@ object Replay: TReplay
   end
   object btnStep: TButton
     Left = 456
-    Top = 200
+    Top = 240
     Width = 75
     Height = 25
     Caption = 'Step by Step'
     TabOrder = 1
     OnClick = btnStepClick
+  end
+  object btnStart: TButton
+    Left = 456
+    Top = 209
+    Width = 75
+    Height = 25
+    Caption = 'start'
+    TabOrder = 2
+    OnClick = btnStartClick
+  end
+  object edSpeed: TEdit
+    Left = 500
+    Top = 187
+    Width = 31
+    Height = 21
+    TabOrder = 3
+    Text = 'edSpeed'
   end
 end

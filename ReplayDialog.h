@@ -37,17 +37,22 @@ __published:	// IDE-managed Components
 	TFastLineSeries *SeriesEP;
 	TButton *btnStep;
 	TLabel *lblInfo;
+	TButton *btnStart;     // ← 同一顆按鈕，Start/Stop 會切換 Caption
+	TEdit *edSpeed;
+	TLabel *Speed;        // ← 每秒步數（steps/sec）
 	void __fastcall FormShow(TObject *Sender);
 	void __fastcall btnStepClick(TObject *Sender);
+    void __fastcall btnStartClick(TObject *Sender); // ← 新增：Start/Stop 切換
 private:	// User declarations
-    // 回放狀態（All sensors 模式）
+
+	// 回放狀態（All sensors 模式）
     int  curIdx;           // 目前幀索引（對 traceT_all）
-    int  lastDrawnIdx;     // 最後已繪到哪一幀（加速）
+	int  lastDrawnIdx;     // 最後已繪到哪一幀（加速）
     bool epAverage;        // true=EP 用 avg，false=EP 用 sum
 
     // 事件快取（從 dumpLogWithSummary() 解析）
 	std::vector<double>     evtT;
-	    std::vector<int>    evtKind;   // 0:ARR 1:STX 2:TTK 3:ETX 4:DROP 5:CST 6:CEND 7:STAT 8:UNKNOWN
+	std::vector<int>    evtKind;   // 0:ARR 1:STX 2:TTK 3:ETX 4:DROP 5:CST 6:CEND 7:STAT 8:UNKNOWN
     std::vector<int>    evtSid;
     std::vector<int>    evtPid;
     std::vector<int>    evtQ;
@@ -69,7 +74,6 @@ private:	// User declarations
     };
 	std::map<int, SidState> S;
 
-
     // 初始化與繪圖
     void InitChart();
 	void BeginReplayAll(bool useAvg);
@@ -79,7 +83,7 @@ private:	// User declarations
 
     // 建事件快取（LOG_HUMAN 時）
 	void BuildEventsCacheFromDump();
-	void BuildEventsFromCSV()         ;
+	void BuildEventsFromCSV();
 
 	static double ParseLeadingTime(const AnsiString& line); // 解析 "t=xx" 時間
 	static int    ParseIntAfter(const AnsiString& line, const AnsiString& key, int defVal);
@@ -87,15 +91,14 @@ private:	// User declarations
     int  FindLastEventIndexLE(double tNow) const;
 	void SetLabelFromEvent(const ReplayEvent& ev, double tNow, int frameIdx);
 
-		// 全域事件游標：下一筆尚未顯示的事件在 evtT/evtMsg 的索引
-
     // 幫手：找到某時間戳的群組範圍 [lo, hi]（含端點）
     bool FindTimeGroupByIndex(int anchor, int& lo, int& hi) const;
 
-	    // 同一時間戳內的子步驟
+    // 同一時間戳內的子步驟
     double curTimeGroupT;   // 目前這個「同時刻」的時間，初始化為 -1
 	int    curTimeGroupPos; // 這個時間戳內，下一筆要顯示的事件在該群組中的位置（0-based）
-	    // 顯示：吃一筆事件 → 更新狀態 → 回傳一行顯示文字（含 Q/EP）
+
+	// 顯示：吃一筆事件 → 更新狀態 → 回傳一行顯示文字（含 Q/EP）
 	AnsiString ApplyAndFormatEvent(int idx);
 
     // 小工具：找出等於某時間戳的事件索引範圍 [lo, hi]（含端點），找不到回傳 false
@@ -106,8 +109,21 @@ private:	// User declarations
 	// 事件是否已經輸出過
 	std::vector<char> evUsed;
 
-
 	bool EmitOneEventAtCurrentFrame();
+
+	// ====== 新增：自動播放（Start/Stop + Timer） ======
+	TTimer* runTimer;
+	bool    isRunning;
+	bool    isStepping;
+	double  stepsPerSec;
+
+	void    EnsureRunTimer();
+    void    StartRun();              // 讀取 edSpeed 後開始播放
+    void    StopRun();               // 停止播放
+	void    UpdateRunUI();           // 切換 btnStart Caption/Enabled、edSpeed Enabled
+    bool    DoOneStep(bool silent);  // 內部的「單步」：回傳是否成功吐出一筆事件
+	void    __fastcall OnRunTimer(TObject* Sender);
+
 public:		// User declarations
 	__fastcall TReplay(TComponent* Owner);
 };
@@ -115,3 +131,4 @@ public:		// User declarations
 extern PACKAGE TReplay *Replay;
 //---------------------------------------------------------------------------
 #endif
+
