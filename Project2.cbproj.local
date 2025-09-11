@@ -1,15 +1,15 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <BorlandProject>
 	<Transactions>
-    <Transaction>2025/07/19 13:21:35.000.264,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Project2PCH1.h</Transaction>
     <Transaction>2025/07/19 13:21:35.000.281,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Unit5.cpp</Transaction>
-    <Transaction>2025/07/19 18:47:51.000.735,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Project2PCH1.h</Transaction>
+    <Transaction>2025/07/19 13:21:35.000.264,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Project2PCH1.h</Transaction>
     <Transaction>2025/07/19 18:47:51.000.753,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Unit5.cpp</Transaction>
+    <Transaction>2025/07/19 18:47:51.000.735,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Project2PCH1.h</Transaction>
     <Transaction>2025/08/19 22:27:21.000.461,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Unit5.cpp</Transaction>
     <Transaction>2025/08/19 22:27:21.000.439,=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Project2PCH1.h</Transaction>
-    <Transaction>2025/08/19 22:29:06.000.010,D:\daniel\RA\Projects\BaseStation\Unit5.h=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Unit5.h</Transaction>
     <Transaction>2025/08/19 22:29:06.000.010,D:\daniel\RA\Projects\BaseStation\Unit5.cpp=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Unit5.cpp</Transaction>
     <Transaction>2025/08/19 22:29:06.000.010,D:\daniel\RA\Projects\BaseStation\Unit5.dfm=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Unit5.dfm</Transaction>
+    <Transaction>2025/08/19 22:29:06.000.010,D:\daniel\RA\Projects\BaseStation\Unit5.h=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Unit5.h</Transaction>
     <Transaction>2025/08/19 22:29:08.000.393,D:\daniel\RA\Projects\BaseStation\Project2PCH1.h=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Project2PCH1.h</Transaction>
     <Transaction>2025/08/19 22:29:12.000.557,D:\daniel\RA\Projects\BaseStation\Project2.cbproj=C:\Users\yeyi5\Documents\Embarcadero\Studio\Projects\Project2.cbproj</Transaction>
     <Transaction>2025/08/19 22:34:17.000.820,=D:\daniel\RA\Projects\BaseStation\File1.h</Transaction>
@@ -25,8 +25,8 @@
     <Transaction>2025/08/21 11:47:28.000.138,D:\daniel\RA\Projects\BaseStation\MMEngine.h=D:\daniel\RA\Projects\BaseStation\File1.h</Transaction>
     <Transaction>2025/08/21 12:14:38.000.853,=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
     <Transaction>2025/08/21 12:14:57.000.643,D:\daniel\RA\Projects\BaseStation\CharterDialog.dfm=D:\daniel\RA\Projects\BaseStation\Unit1.dfm</Transaction>
-    <Transaction>2025/08/21 12:14:57.000.643,D:\daniel\RA\Projects\BaseStation\CharterDialog.cpp=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
     <Transaction>2025/08/21 12:14:57.000.643,D:\daniel\RA\Projects\BaseStation\CharterDialog.h=D:\daniel\RA\Projects\BaseStation\Unit1.h</Transaction>
+    <Transaction>2025/08/21 12:14:57.000.643,D:\daniel\RA\Projects\BaseStation\CharterDialog.cpp=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
     <Transaction>2025/08/22 16:04:50.000.772,=D:\daniel\RA\Projects\BaseStation\File1.h</Transaction>
     <Transaction>2025/08/22 16:04:54.000.548,D:\daniel\RA\Projects\BaseStation\Sensor.h=D:\daniel\RA\Projects\BaseStation\File1.h</Transaction>
     <Transaction>2025/08/22 16:05:20.000.099,=D:\daniel\RA\Projects\BaseStation\File1.cpp</Transaction>
@@ -37,19 +37,23 @@
     <Transaction>2025/08/22 17:03:12.000.444,D:\daniel\RA\Projects\BaseStation\Unit1.cpp=D:\daniel\RA\Projects\BaseStation\ChooseITorST.cpp</Transaction>
     <Transaction>2025/08/22 17:18:40.000.995,=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
     <Transaction>2025/08/22 17:18:50.000.415,D:\daniel\RA\Projects\BaseStation\Unit1.dfm=D:\daniel\RA\Projects\BaseStation\ChooseMethodDialog.dfm</Transaction>
-    <Transaction>2025/08/22 17:18:50.000.415,D:\daniel\RA\Projects\BaseStation\Unit1.h=D:\daniel\RA\Projects\BaseStation\ChooseMethodDialog.h</Transaction>
     <Transaction>2025/08/22 17:18:50.000.415,D:\daniel\RA\Projects\BaseStation\Unit1.cpp=D:\daniel\RA\Projects\BaseStation\ChooseMethodDialog.cpp</Transaction>
+    <Transaction>2025/08/22 17:18:50.000.415,D:\daniel\RA\Projects\BaseStation\Unit1.h=D:\daniel\RA\Projects\BaseStation\ChooseMethodDialog.h</Transaction>
     <Transaction>2025/08/22 17:36:04.000.604,=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
-    <Transaction>2025/08/22 17:36:14.000.671,D:\daniel\RA\Projects\BaseStation\Unit1.cpp=D:\daniel\RA\Projects\BaseStation\ParaSetterDialog.cpp</Transaction>
     <Transaction>2025/08/22 17:36:14.000.671,D:\daniel\RA\Projects\BaseStation\Unit1.dfm=D:\daniel\RA\Projects\BaseStation\ParaSetterDialog.dfm</Transaction>
     <Transaction>2025/08/22 17:36:14.000.671,D:\daniel\RA\Projects\BaseStation\Unit1.h=D:\daniel\RA\Projects\BaseStation\ParaSetterDialog.h</Transaction>
+    <Transaction>2025/08/22 17:36:14.000.671,D:\daniel\RA\Projects\BaseStation\Unit1.cpp=D:\daniel\RA\Projects\BaseStation\ParaSetterDialog.cpp</Transaction>
     <Transaction>2025/08/22 20:24:04.000.480,=D:\daniel\RA\Projects\BaseStation\File1.h</Transaction>
     <Transaction>2025/08/22 20:24:09.000.674,D:\daniel\RA\Projects\BaseStation\Master.h=D:\daniel\RA\Projects\BaseStation\File1.h</Transaction>
     <Transaction>2025/08/22 20:24:16.000.672,=D:\daniel\RA\Projects\BaseStation\File1.cpp</Transaction>
     <Transaction>2025/08/22 20:24:20.000.653,D:\daniel\RA\Projects\BaseStation\Master.cpp=D:\daniel\RA\Projects\BaseStation\File1.cpp</Transaction>
     <Transaction>2025/09/08 12:17:09.000.736,=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
-    <Transaction>2025/09/08 12:17:22.000.780,D:\daniel\RA\Projects\BaseStation\setAllParaDialog.dfm=D:\daniel\RA\Projects\BaseStation\Unit1.dfm</Transaction>
     <Transaction>2025/09/08 12:17:22.000.780,D:\daniel\RA\Projects\BaseStation\setAllParaDialog.cpp=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
+    <Transaction>2025/09/08 12:17:22.000.780,D:\daniel\RA\Projects\BaseStation\setAllParaDialog.dfm=D:\daniel\RA\Projects\BaseStation\Unit1.dfm</Transaction>
     <Transaction>2025/09/08 12:17:22.000.780,D:\daniel\RA\Projects\BaseStation\setAllParaDialog.h=D:\daniel\RA\Projects\BaseStation\Unit1.h</Transaction>
+    <Transaction>2025/09/11 12:57:03.000.254,=D:\daniel\RA\Projects\BaseStation\Unit1.cpp</Transaction>
+    <Transaction>2025/09/11 12:57:15.000.901,D:\daniel\RA\Projects\BaseStation\Unit1.dfm=D:\daniel\RA\Projects\BaseStation\ReplayDialog.dfm</Transaction>
+    <Transaction>2025/09/11 12:57:15.000.901,D:\daniel\RA\Projects\BaseStation\Unit1.h=D:\daniel\RA\Projects\BaseStation\ReplayDialog.h</Transaction>
+    <Transaction>2025/09/11 12:57:15.000.901,D:\daniel\RA\Projects\BaseStation\Unit1.cpp=D:\daniel\RA\Projects\BaseStation\ReplayDialog.cpp</Transaction>
   </Transactions>
 </BorlandProject>

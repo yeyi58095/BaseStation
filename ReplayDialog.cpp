@@ -117,42 +117,119 @@ void __fastcall TReplay::FormShow(TObject *Sender)
 	ReplayChart->Title->Caption = epAverage ? "All sensors (EP avg)" : "All sensors (EP sum)";
 }
 //---------------------------------------------------------------------------
-
 void TReplay::BeginReplayAll(bool useAvg)
 {
+    nextEventIdx = 0;
     epAverage = useAvg;
     InitChart();
 
     curIdx = 0;
     lastDrawnIdx = -1;
+    S.clear();
 
-    // 建立事件快取（如果使用者切到 LOG_HUMAN 才會有）
     BuildEventsCacheFromDump();
+    if (!hasEvents) BuildEventsFromCSV();
 
-    // 畫第一幀（如果有資料）
+    // ★ 建立事件→幀的 bucket
+    frameEv.clear();
+    evUsed.clear();
+    if (hasEvents) {
+        const std::vector<double>& tA = master.traceT_all;
+        int K = (int)tA.size();
+        frameEv.resize(K);
+        evUsed.resize((int)evtT.size(), 0);
+
+        if (K > 0) {
+            int i, k = 0;
+            for (i = 0; i < (int)evtT.size(); ++i) {
+                double te = evtT[i];
+                // 找到最小的 k 使 te <= tA[k]
+                while (k < K && te - tA[k] > 1e-9) ++k;
+                if (k >= K) k = K - 1;      // 太晚的事件就塞到最後一幀
+                if (k < 0)  k = 0;
+                frameEv[k].push_back(i);
+            }
+        }
+    }
+
     DrawToIndex(0);
 }
+
 void __fastcall TReplay::btnStepClick(TObject *Sender)
 {
-	     // 每按一次往下一幀
-	const std::vector<double>& tAll = master.traceT_all;
-	if (tAll.empty()) {
-		lblInfo->Caption = "No trace data. Run simulation first.";
-        return;
-    }
+    const std::vector<double>& tAll = master.traceT_all;
+    if (tAll.empty()) { lblInfo->Caption = "No trace data. Run simulation first."; return; }
     if (curIdx < 0) curIdx = 0;
-    if (curIdx >= (int)tAll.size() - 1) {
-        // 到尾端
-        curIdx = (int)tAll.size() - 1;
-        DrawToIndex(curIdx);
-        lblInfo->Caption = lblInfo->Caption + "\n(End)";
-        return;
+
+    // 畫到目前幀
+    DrawToIndex(curIdx);
+    double tNow = tAll[curIdx];
+
+    // 先嘗試吐出「這一幀」的尚未輸出的事件（一次只吐一筆）
+    if (hasEvents && curIdx < (int)frameEv.size()) {
+        std::vector<int>& bucket = frameEv[curIdx];
+
+        int p;
+        for (p = 0; p < (int)bucket.size(); ++p) {
+            int evIdx = bucket[p];
+            if (!evUsed[evIdx]) {
+                // 1) 套用事件（更新狀態、得到事件行）
+                AnsiString line = ApplyAndFormatEvent(evIdx);
+                evUsed[evIdx] = 1;
+
+				// 2) 用「事件後」的 Q/EP 重建標頭（讓上方數字與事件一致）
+				// ...已有：AnsiString line = ApplyAndFormatEvent(evIdx);  // 這步會更新 S[sid].ep
+				int sid    = evtSid[evIdx];
+				int qAfter = (evtQ[evIdx]  >= 0) ? evtQ[evIdx]  : (int)S[sid].q.size();
+				int epAfter= (evtEP[evIdx] >= 0) ? evtEP[evIdx] : S[sid].ep;
+
+				// 仍用 trace 當 MeanQ、也保留 EP 曲線作為底
+				double meanQ = master.traceMeanQ_all[curIdx];
+
+				// ★ 這裡是關鍵：單一 sensor 直接用事件後的 EP 當 EP_avg
+				double epHeader;
+				int N = (master.sensors ? (int)master.sensors->size() : 1);
+				if (N == 1 && sid >= 0) {
+					epHeader = (double)epAfter;             // 單 sensor：EP_avg = 該 sensor EP（事件後）
+				} else {
+					// 多 sensor 時，先用 trace 當底，再用可推得的 delta 微調（可選）
+					double epTrace = epAverage
+						? ((curIdx < (int)master.traceEavg_all.size()) ? master.traceEavg_all[curIdx] : 0.0)
+						: ((curIdx < (int)master.traceE_all.size())     ? master.traceE_all[curIdx]     : 0.0);
+
+					int delta = 0;
+					if (evtKind[evIdx] == 2) {          // TTK: 每 tick 扣 1
+						delta = -1;
+					} else if (evtKind[evIdx] == 6) {   // CEND: x1 是充進去的 EP 數
+						delta = (int)evtX1[evIdx];
+					}
+					epHeader = epTrace + (epAverage ? ((double)delta)/N : (double)delta);
+				}
+
+				// 重建標頭（用 qAfter / epHeader）
+				AnsiString header =
+					"t=" + FloatToStrF(tNow, ffFixed, 7, 3) +
+					"   frame=" + IntToStr(curIdx) +
+					"\nQ=" + FloatToStrF(qAfter, ffFixed, 7, 3) +
+					"  MeanQ=" + FloatToStrF(meanQ,  ffFixed, 7, 3) +
+					(epAverage ? "  EP_avg=" : "  EP_sum=") +
+					FloatToStrF(epHeader, ffFixed, 7, 3);
+
+				lblInfo->Caption = header + "\n" + line;
+				return;
+
+            }
+        }
     }
 
-    curIdx++;
-	DrawToIndex(curIdx);
+    // 這一幀沒有事件、或已吐完 → 移到下一幀
+    if (curIdx < (int)tAll.size() - 1) {
+        curIdx++;
+        DrawToIndex(curIdx);
+    } else {
+        lblInfo->Caption = lblInfo->Caption + "\n(End)";
+    }
 }
-//---------------------------------------------------------------------------
 
 void TReplay::DrawToIndex(int k)
 {
@@ -219,43 +296,27 @@ void TReplay::AppendPoint(int i)
 
 void TReplay::UpdateLabelForTime(double tNow, int k)
 {
-    // 顯示目前幀的統計（All）
-    AnsiString base =
-        "t=" + FloatToStrF(tNow, ffFixed, 7, 3) +
-        "   frame=" + IntToStr(k);
-
-    // 如果有事件快取，找最後一筆 evtT <= tNow
-    if (hasEvents && !evtT.empty()) {
-        int j;
-        int pick = -1;
-        for (j = (int)evtT.size()-1; j >= 0; --j) {
-            if (evtT[j] <= tNow + 1e-9) { pick = j; break; }
-        }
-        if (pick >= 0) {
-            lblInfo->Caption = base + "\n" + evtMsg[pick];
-            return;
-        }
-    }
-
-    // 沒事件（或 LOG_CSV 模式），就簡單秀幀資訊
     const std::vector<double>& q  = master.traceQ_all;
     const std::vector<double>& m  = master.traceMeanQ_all;
     const std::vector<double>& eA = master.traceEavg_all;
     const std::vector<double>& eS = master.traceE_all;
 
-    double epVal = epAverage ? ( (k < (int)eA.size()) ? eA[k] : 0.0 )
-                             : ( (k < (int)eS.size()) ? eS[k] : 0.0 );
-    AnsiString info = base +
+    double epVal = epAverage ? ((k < (int)eA.size()) ? eA[k] : 0.0)
+                             : ((k < (int)eS.size()) ? eS[k] : 0.0);
+
+    lblInfo->Caption =
+        "t=" + FloatToStrF(tNow, ffFixed, 7, 3) +
+        "   frame=" + IntToStr(k) +
         "\nQ=" + FloatToStrF(q[k], ffFixed, 7, 3) +
         "  MeanQ=" + FloatToStrF(m[k], ffFixed, 7, 3) +
-        (epAverage ? "  EP_avg=" : "  EP_sum=") + FloatToStrF(epVal, ffFixed, 7, 3);
-    lblInfo->Caption = info;
+        (epAverage ? "  EP_avg=" : "  EP_sum=") +
+        FloatToStrF(epVal, ffFixed, 7, 3);
 }
 
 void TReplay::BuildEventsCacheFromDump()
 {
-    // 先試 Human 文字（dump）
-    evtT.clear();
+    evtT.clear(); evtKind.clear(); evtSid.clear(); evtPid.clear();
+    evtQ.clear(); evtEP.clear(); evtX1.clear(); evtX2.clear();
     evtMsg.clear();
     hasEvents = false;
 
@@ -269,70 +330,67 @@ void TReplay::BuildEventsCacheFromDump()
         if (line.Length() < 3) continue;
         if (!(line.SubString(1,2) == "t=")) continue;
 
-		double tt = ParseLeadingTime(line);
+        double tt = ParseLeadingTime(line);
         if (tt < 0.0) continue;
 
-        // 做個簡短的人類可讀摘要：Sensor ? — TYPE (...)，並保留原行前 80 字輔助
+        AnsiString typ = DetectEventType(line);
+        if (typ == "STATE" || typ == "STAT") continue; // 回放不吃
+
         int sid = ParseIntAfter(line, "sensor=", -1);
         int pid = ParseIntAfter(line, "pkg=", -1);
-        AnsiString who = (sid >= 0) ? (AnsiString("Sensor ") + IntToStr(sid + 1)) : AnsiString("All/HAP");
-        AnsiString typ = DetectEventType(line);
 
-		if (typ == "STATE" || typ == "STAT") continue;
-        AnsiString shortTxt = line;
-        if (shortTxt.Length() > 80) shortTxt = shortTxt.SubString(1, 80) + "...";
-
-        AnsiString msg = who + " — " + typ;
-        if (pid >= 0) msg += "  (pkg=" + IntToStr(pid) + ")";
-        msg += "\n" + shortTxt;
+        int kind = 8; // UNKNOWN
+        if (typ == "ARR") kind = 0;
+        else if (typ == "START_TX") kind = 1;
+        else if (typ == "TX_TICK")  kind = 2;
+        else if (typ == "END_TX")   kind = 3;
+        else if (typ == "DROP")     kind = 4;
+        else if (typ == "CHARGE_START") kind = 5;
+        else if (typ == "CHARGE_END")   kind = 6;
 
         evtT.push_back(tt);
+        evtKind.push_back(kind);
+        evtSid.push_back(sid);
+        evtPid.push_back(pid);
+        evtQ.push_back(-1);     // Human 無 q/ep 欄，交由狀態推
+        evtEP.push_back(-1);
+        evtX1.push_back(0.0);
+        evtX2.push_back(0.0);
+
+        // 可留一份簡短文字（非必要）
+        AnsiString who = (sid >= 0) ? (AnsiString("Sensor ") + IntToStr(sid+1)) : AnsiString("All/HAP");
+        AnsiString msg = who + " — " + typ;
+        if (pid >= 0) msg += "  (pkg=" + IntToStr(pid) + ")";
         evtMsg.push_back(msg);
     }
     delete sl;
 
-    if (!evtT.empty()) {
-        hasEvents = true;
-        return; // Human 模式 OK
-    }
-
-	// Human 模式沒抓到 → fallback: 用 CSV 來建
-	BuildEventsFromCSV();
+    hasEvents = !evtT.empty();
+    nextEventIdx = 0;
+    S.clear();
+    // 事件按時間已經有序（dump 原本就是照時間），若有需要可做穩定排序
 }
 
-// 從 CSV 建立事件快取（填入 evtT / evtMsg）
 void TReplay::BuildEventsFromCSV()
 {
-    evtT.clear();
+    evtT.clear(); evtKind.clear(); evtSid.clear(); evtPid.clear();
+    evtQ.clear(); evtEP.clear(); evtX1.clear(); evtX2.clear();
     evtMsg.clear();
 
-    // 嘗試兩個常見路徑：當前目錄、Win32/Debug
-    AnsiString csvPath;
-    if (!FileExistsMulti("run_log.csv", "Win32\\Debug\\run_log.csv", csvPath)) {
-        // 也許在專案輸出資料夾（如果你用別的路徑，改這裡）
-        if (!FileExistsMulti("..\\..\\Win32\\Debug\\run_log.csv", "..\\..\\run_log.csv", csvPath)) {
-            // 找不到 CSV
-            hasEvents = false;
-            return;
-        }
-    }
+    hasEvents = false;
+
+    AnsiString csvPath = "run_log.csv";
+    if (!FileExists(csvPath)) csvPath = "Win32\\Debug\\run_log.csv";
+    if (!FileExists(csvPath)) return;
 
     TStringList* sl = new TStringList();
-    try {
-        sl->LoadFromFile(csvPath);
-    } catch(...) {
-        delete sl;
-        hasEvents = false;
-        return;
-    }
+    try { sl->LoadFromFile(csvPath); } catch(...) { delete sl; return; }
 
     std::vector<AnsiString> cols;
     int i;
     for (i = 0; i < sl->Count; ++i) {
         AnsiString line = sl->Strings[i].Trim();
         if (line.IsEmpty()) continue;
-
-        // 跳過標頭（以 't,' 或 't,event' 判定；也防止人為插入的註解）
         if (line.Pos("t,") == 1 || line.Pos("t,event") == 1) continue;
 
         cols.clear();
@@ -340,8 +398,18 @@ void TReplay::BuildEventsFromCSV()
         if ((int)cols.size() < 8) continue;
 
         double t   = StrToFloatDef(cols[0], 0.0);
-		CsvEvKind k= parseKind(cols[1]);
-		if (k == CEV_STAT) continue;
+        CsvEvKind k= parseKind(cols[1]);
+        if (k == CEV_STAT) continue; // 不吃 STAT
+
+        int kind = 8; // UNKNOWN -> 我們自己的編碼
+        if (k == CEV_ARR)  kind = 0;
+        if (k == CEV_STX)  kind = 1;
+        if (k == CEV_TTK)  kind = 2;
+        if (k == CEV_ETX)  kind = 3;
+        if (k == CEV_DROP) kind = 4;
+        if (k == CEV_CST)  kind = 5;
+        if (k == CEV_CEND) kind = 6;
+
         int sid    = StrToIntDef(cols[2], -1);
         int pid    = StrToIntDef(cols[3], -1);
         int q      = StrToIntDef(cols[4], -1);
@@ -349,36 +417,47 @@ void TReplay::BuildEventsFromCSV()
         double x1  = StrToFloatDef(cols[6], 0.0);
         double x2  = StrToFloatDef(cols[7], 0.0);
 
-        // 組一行人類可讀的簡短訊息（與你原本 Label 類似）
+        evtT.push_back(t);
+        evtKind.push_back(kind);
+        evtSid.push_back(sid);
+        evtPid.push_back(pid);
+        evtQ.push_back(q);
+        evtEP.push_back(ep);
+        evtX1.push_back(x1);
+        evtX2.push_back(x2);
+
+        // 預設訊息（非必要；真的要用狀態字串會重新組）
         AnsiString who = (sid >= 0) ? (AnsiString("Sensor ") + IntToStr(sid+1)) : AnsiString("All/HAP");
         AnsiString typ = kindToText(k);
         AnsiString msg = who + " — " + typ;
-
         if (pid >= 0) msg += "  (pkg=" + IntToStr(pid) + ")";
-
-        // 也可加一點輔助資訊（可選）
-        if (k == CEV_STX) {
-            msg += "  st=" + FloatToStrF(x1, ffFixed, 7, 3) +
-                   "  EP_before=" + IntToStr(ep) +
-                   "  cost=" + IntToStr((int)x2);
-        } else if (k == CEV_TTK) {
-            msg += "  EP=" + IntToStr(ep) + "  remain=" + IntToStr((int)x1);
-        } else if (k == CEV_ETX) {
-            msg += "  EP=" + IntToStr(ep) + "  Q=" + IntToStr(q);
-        } else if (k == CEV_CEND) {
-            msg += "  EP=" + IntToStr(ep) + "  +=" + IntToStr((int)x1) + "EP";
-        } else if (k == CEV_DROP) {
-            if (q >= 0)  msg += "  Q=" + IntToStr(q);
-            if (ep >= 0) msg += "  EP=" + IntToStr(ep);
-        }
-
-        evtT.push_back(t);
         evtMsg.push_back(msg);
     }
-
     delete sl;
 
+    // CSV 可能不是穩定時間序，做一下穩定排序（無 lambda 版本）
+    // 用簡單插入排序（資料量通常不大；若很大可改比較函式 + stable_sort）
+    int n = (int)evtT.size(), ii, jj;
+    for (ii = 1; ii < n; ++ii) {
+        double   tkey = evtT[ii];
+        int      kkey = evtKind[ii], sid = evtSid[ii], pid = evtPid[ii];
+        int      q = evtQ[ii], ep = evtEP[ii];
+        double   x1 = evtX1[ii], x2 = evtX2[ii];
+        AnsiString m = evtMsg[ii];
+        jj = ii - 1;
+        while (jj >= 0 && evtT[jj] > tkey) {
+            evtT[jj+1]=evtT[jj]; evtKind[jj+1]=evtKind[jj]; evtSid[jj+1]=evtSid[jj];
+            evtPid[jj+1]=evtPid[jj]; evtQ[jj+1]=evtQ[jj]; evtEP[jj+1]=evtEP[jj];
+            evtX1[jj+1]=evtX1[jj]; evtX2[jj+1]=evtX2[jj]; evtMsg[jj+1]=evtMsg[jj];
+            --jj;
+        }
+        evtT[jj+1]=tkey; evtKind[jj+1]=kkey; evtSid[jj+1]=sid; evtPid[jj+1]=pid;
+        evtQ[jj+1]=q; evtEP[jj+1]=ep; evtX1[jj+1]=x1; evtX2[jj+1]=x2; evtMsg[jj+1]=m;
+    }
+
     hasEvents = !evtT.empty();
+    nextEventIdx = 0;
+    S.clear();
 }
 
 
@@ -470,6 +549,126 @@ void TReplay::SetLabelFromEvent(const ReplayEvent& ev, double tNow, int frameIdx
     if (shortTxt.Length() > 80) shortTxt = shortTxt.SubString(1, 80) + "...";
 
     lblInfo->Caption = head + "\n" + line2 + "\n" + shortTxt;
+}
+
+
+bool TReplay::FindTimeGroup(double tNow, int& lo, int& hi) const
+{
+    lo = -1; hi = -1;
+    if (!hasEvents || evtT.empty()) return false;
+
+    // 先找到最後一筆 <= tNow
+    int j;
+    int lastLE = -1;
+    for (j = (int)evtT.size() - 1; j >= 0; --j) {
+        if (evtT[j] <= tNow + 1e-9) { lastLE = j; break; }
+    }
+    if (lastLE < 0) return false;
+
+    // 這一筆的時間就是群組時間（可能 < tNow；若 < tNow，代表 tNow 沒事件，就回那個時間的最後群）
+    double T = evtT[lastLE];
+
+    // 往左找到同一個時間的起點
+    int s = lastLE;
+    while (s - 1 >= 0 && fabs(evtT[s - 1] - T) <= 1e-9) --s;
+
+    // 往右找到同一個時間的終點
+    int e = lastLE;
+    while (e + 1 < (int)evtT.size() && fabs(evtT[e + 1] - T) <= 1e-9) ++e;
+
+    lo = s; hi = e;
+    return true;
+}
+
+
+bool TReplay::FindTimeGroupByIndex(int anchor, int& lo, int& hi) const
+{
+    lo = -1; hi = -1;
+    if (!hasEvents || evtT.empty()) return false;
+    if (anchor < 0 || anchor >= (int)evtT.size()) return false;
+
+    double T = evtT[anchor];
+
+    int s = anchor;
+    while (s - 1 >= 0 && fabs(evtT[s - 1] - T) <= 1e-9) --s;
+
+    int e = anchor;
+    while (e + 1 < (int)evtT.size() && fabs(evtT[e + 1] - T) <= 1e-9) ++e;
+
+    lo = s; hi = e;
+    return true;
+}
+
+AnsiString TReplay::ApplyAndFormatEvent(int idx)
+{
+    int kind = evtKind[idx];
+    int sid  = evtSid[idx];
+    int pid  = evtPid[idx];
+    int qcol = evtQ[idx];     // 事件後的 queue size（CSV 會有，Human 沒有）
+    int epcol= evtEP[idx];
+    double x1 = evtX1[idx];
+    double x2 = evtX2[idx];
+
+    SidState &st = S[sid];
+    AnsiString who = (sid >= 0) ? (AnsiString("Sensor ") + IntToStr(sid+1)) : AnsiString("All/HAP");
+    AnsiString line;
+
+    switch (kind) {
+        case 0: // ARR
+            if (pid >= 0) st.q.push_back(pid);
+            if (epcol >= 0) st.ep = epcol;
+            line = who + " — ARR  (pkg=" + IntToStr(pid) + ")";
+            break;
+
+        case 1: // START_TX
+            // 從 queue 拿掉要服務的那顆
+            if (!st.q.empty() && pid >= 0 && st.q.front() == pid) st.q.erase(st.q.begin());
+            st.servingPid = pid;
+            line = who + " — START_TX  (pkg=" + IntToStr(pid) + ")"
+                 + "  st=" + FloatToStrF(x1, ffFixed, 7, 3)
+                 + "  EP_before=" + IntToStr(epcol)
+                 + "  cost=" + IntToStr((int)x2);
+            break;
+
+        case 2: // TX_TICK
+            if (epcol >= 0) st.ep = epcol;
+            line = who + " — TX_TICK  (pkg=" + IntToStr(st.servingPid) + ")"
+                 + "  EP=" + IntToStr(st.ep);
+            break;
+
+        case 3: // END_TX
+            st.servingPid = -1;
+            if (epcol >= 0) st.ep = epcol;
+            line = who + " — END_TX  (pkg=" + IntToStr(pid) + ")";
+            break;
+
+        case 4: // DROP
+            if (epcol >= 0) st.ep = epcol;
+            line = who + " — DROP";
+            break;
+
+        case 5: // CHARGE_START
+            line = who + " — CHARGE_START";
+            break;
+
+        case 6: // CHARGE_END
+            if (epcol >= 0) st.ep = epcol;
+            line = who + " — CHARGE_END  EP=" + IntToStr(st.ep);
+            break;
+
+        default:
+            line = who + " — EVENT";
+            break;
+    }
+
+    // ★ Q 對齊 traceQ_all：只算等待佇列，不含 in-service
+    int qnow = (qcol >= 0) ? qcol : (int)st.q.size();
+
+    // ★ EP：若 CSV 有 ep 欄位就用，否則用我們維持的狀態
+    int epnow = (epcol >= 0) ? epcol : st.ep;
+
+    line += "   |  Q=" + IntToStr(qnow) + "  EP=" + IntToStr(epnow);
+    return line;
 }
 
 

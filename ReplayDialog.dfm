@@ -3,7 +3,7 @@ object Replay: TReplay
   Top = 0
   Caption = 'Replay'
   ClientHeight = 294
-  ClientWidth = 563
+  ClientWidth = 889
   Color = clBtnFace
   Font.Charset = DEFAULT_CHARSET
   Font.Color = clWindowText
