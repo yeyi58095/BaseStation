@@ -46,7 +46,7 @@ double Sensor::sampleST() const {
 int Sensor::energyForSt(double st) const {
     if (st < 0) st = 0;
 	double need =  txCostPerSec * st;
-    int needInt = (int)std::ceil(need - 1e-12);
+	int needInt = (int)std::ceil(need - 1e-12);
     if (needInt < 1) needInt = 1;
     return needInt;
 }
@@ -57,15 +57,16 @@ void Sensor::enqueueArrival() {
     Packet p;
     p.id     = ++pktSeq;
     p.st     = st;
-    p.needEP = energyForSt(st);
+	p.needEP = energyForSt(st);
     q.push_back(p);
 }
 
 bool Sensor::canTransmit() const {
-    if (serving || q.empty()) return false;
-    int need = frontNeedEP();
-    int gate = (need > r_tx ? need : r_tx);  // keep r_tx as a gate
-    return energy >= gate;
+	if (serving || q.empty()) return false;
+	int need = frontNeedEP();
+	int gate = (need > r_tx ? need : r_tx);  // keep r_tx as a gate
+	gate = std::min(gate, E_cap);            // ★ 不能比容量還大
+	return energy >= gate;
 }
 
 double Sensor::startTx() {

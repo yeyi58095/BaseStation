@@ -418,15 +418,15 @@ void Master::scheduleIfIdle() {
 
     // (A) TX: if idle, pick one
     if (!hapTxBusy) {
-        int pickTX = -1; double bestScore = -1.0;
-        for (int i=0;i<N; ++i) {
-            Sensor* s = (*sensors)[i];
-            if (!s->canTransmit()) continue;
-            double score = dpCoef * (double)s->q.size()
-                         * epCoef * (double)s->energy;
-            if (score > bestScore) { bestScore = score; pickTX = i; }
+		int pickTX = -1; double bestScore = -1.0;
+		for (int i=0;i<N; ++i) {
+			Sensor* s = (*sensors)[i];
+			if (!s->canTransmit()) continue;
+			double score = dpCoef * (double)s->q.size()
+						 * epCoef * (double)s->energy;
+			if (score > bestScore) { bestScore = score; pickTX = i; }
         }
-        if (pickTX >= 0) {
+		if (pickTX >= 0) {
             Sensor* s = (*sensors)[pickTX];
 
             int    pid      = s->frontId();
@@ -434,7 +434,7 @@ void Master::scheduleIfIdle() {
             int    epCost   = s->frontNeedEP();
             int    epBefore = s->energy;
 
-            double st = s->startTx(); // ★ 不再在這裡扣 EP（交由 EV_TX_TICK）
+			double st = s->startTx(); // ★ 不再在這裡扣 EP（交由 EV_TX_TICK）
             if (st <= EPS) st = st_need;
             hapTxBusy = true; hapTxSid = pickTX;
 
@@ -755,7 +755,7 @@ int Master::needEPForHead(int sid) const {
 
 
 void Master::startChargeToFull(int sid) {
-    Sensor* s = (*sensors)[sid];
+	Sensor* s = (*sensors)[sid];
     if (!s || charging[sid]) return;
     if (s->charge_rate <= 0) return;
     if (s->energy >= s->E_cap) return;
