@@ -800,16 +800,20 @@ AnsiString Master::leftPanelSummary() const {
     }
 
     const double Lq_all  = sumQtot / T;
-    const double Wq_all  = (S_tot > 0) ? (Lq_all / ((double)S_tot / T)) : 0.0;
+	const double Wq_all  = (S_tot > 0) ? (Lq_all / ((double)S_tot / T)) : 0.0;
     const double loss_all= (A_tot > 0) ? ((double)D_tot / (double)A_tot) : 0.0;
     const double EP_mean_per_sensor =
         (N > 0) ? ((T > 0 ? (sumE_tot / (T * N)) : 0.0)) : 0.0;
 
+    // === 新增：Mean System Size (L) ===
+    const double L_all = (sumQtot + busySumTx) / T;  // 等待 + 服務中 的時間平均人數
+
     sl->Add("=== Summary ===");
-    sl->Add("DP Queuing Size  : " + FloatToStrF(Lq_all, ffFixed, 7, 4));
+    sl->Add("DP Queuing Size (Lq): " + FloatToStrF(Lq_all, ffFixed, 7, 4));
     sl->Add("DP Waiting time (Wq): " + FloatToStrF(Wq_all, ffFixed, 7, 4));
-    sl->Add("DP Loss rate     : " + FloatToStrF(loss_all, ffFixed, 7, 4));
-    sl->Add("EP Capacity Mean : " + FloatToStrF(EP_mean_per_sensor, ffFixed, 7, 4));
+    sl->Add("DP Loss rate        : " + FloatToStrF(loss_all, ffFixed, 7, 4));
+    sl->Add("DP System Size (L)  : " + FloatToStrF(L_all, ffFixed, 7, 4)); // ← 這行就是你要的
+    sl->Add("EP Capacity Mean    : " + FloatToStrF(EP_mean_per_sensor, ffFixed, 7, 4));
 
     AnsiString out = sl->Text;
     delete sl;
