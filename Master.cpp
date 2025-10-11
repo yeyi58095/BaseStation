@@ -330,7 +330,7 @@ void Master::run() {
     if (now < endTime) { now = endTime; accumulate(); }
 
 	// ★ CSV 關檔
-	if (flog) { fclose(flog); flog = NULL; }
+	if (logMode == LOG_CSV && flog) { fclose(flog); flog = NULL; }
 }
 
 void Master::felClear() {
@@ -562,15 +562,16 @@ AnsiString Master::reportAll() const {
 
 // === CSV 版 ===
 void Master::logCSV(double t, const char* ev, int sid, int pid, int q, int ep, double x1, double x2) {
-    if (logMode != LOG_CSV || !flog) return;
+	if (logMode != LOG_CSV || !flog) return;
     fprintf(flog, "%.6f,%s,%d,%d,%d,%d,%.6f,%.6f\n", t, ev, sid, pid, q, ep, x1, x2);
 }
 
 void Master::logTxTick(double t,int sid,int pid,int epRemain,int epNow){
-    if (logMode == LOG_CSV) {
-        logCSV(t, "TTK", sid, pid, -1, epNow, (double)epRemain, 0.0);
-    } else {
-        timeline.push_back(
+	 if (logMode == LOG_NONE) return;
+	if (logMode == LOG_CSV) {
+		logCSV(t, "TTK", sid, pid, -1, epNow, (double)epRemain, 0.0);
+	} else {
+		timeline.push_back(
             AnsiString("t=") + f2(t,3) +
 			"  TX_TICK   sensor=" + IntToStr(sid) +
             "  pkg=" + IntToStr(pid) +
@@ -583,42 +584,47 @@ void Master::logTxTick(double t,int sid,int pid,int epRemain,int epNow){
 
 // === 人類可讀（保留；CSV 模式不會用 timeline） ===
 void Master::logArrival(double t,int sid,int pid,int q,int ep){
-    if (logMode == LOG_CSV) { logCSV(t, "ARR", sid, pid, q, ep); return; }
-    timeline.push_back(
-        AnsiString("t=") + f2(t,3) +
-        "  sensor=" + IntToStr(sid) +
-        "  pkg=" + IntToStr(pid) +
-        "  ARRIVAL      Q=" + IntToStr(q) +
-        "  EP=" + IntToStr(ep)
-    );
+	 if (logMode == LOG_NONE) return;
+	if (logMode == LOG_CSV) { logCSV(t, "ARR", sid, pid, q, ep); return; }
+	timeline.push_back(
+		AnsiString("t=") + f2(t,3) +
+		"  sensor=" + IntToStr(sid) +
+		"  pkg=" + IntToStr(pid) +
+		"  ARRIVAL      Q=" + IntToStr(q) +
+		"  EP=" + IntToStr(ep)
+	);
 }
 
 void Master::logStartTx(double t,int sid,int pid,double st,int epBefore,int epCost){
-    if (logMode == LOG_CSV) { logCSV(t, "STX", sid, pid, -1, epBefore, st, (double)epCost); return; }
-    timeline.push_back(
-        AnsiString("t=") + f2(t,3) +
-        "  HAP      START_TX sensor=" + IntToStr(sid) +
-        "  pkg=" + IntToStr(pid) +
-        "  st=" + f2(st,3) +
-        "  EP_before=" + IntToStr(epBefore) +
-        "  cost=" + IntToStr(epCost) + " (will be ticked)"
-    );
+ if (logMode == LOG_NONE) return;
+	 if (logMode == LOG_NONE) return;
+	if (logMode == LOG_CSV) { logCSV(t, "STX", sid, pid, -1, epBefore, st, (double)epCost); return; }
+	timeline.push_back(
+		AnsiString("t=") + f2(t,3) +
+		"  HAP      START_TX sensor=" + IntToStr(sid) +
+		"  pkg=" + IntToStr(pid) +
+		"  st=" + f2(st,3) +
+		"  EP_before=" + IntToStr(epBefore) +
+		"  cost=" + IntToStr(epCost) + " (will be ticked)"
+	);
 }
 
 void Master::logEndTx(double t,int sid,int pid,int q,int epNow){
-    if (logMode == LOG_CSV) { logCSV(t, "ETX", sid, pid, q, epNow); return; }
-    timeline.push_back(
-        AnsiString("t=") + f2(t,3) +
-        "  HAP      END_TX   sensor=" + IntToStr(sid) +
-        "  pkg=" + IntToStr(pid) +
-        "  served=" + IntToStr(served[sid] + 1) +
-        "  Q=" + IntToStr(q) +
-        "  EP=" + IntToStr(epNow)
-    );
+ if (logMode == LOG_NONE) return;
+	if (logMode == LOG_CSV) { logCSV(t, "ETX", sid, pid, q, epNow); return; }
+	timeline.push_back(
+		AnsiString("t=") + f2(t,3) +
+		"  HAP      END_TX   sensor=" + IntToStr(sid) +
+		"  pkg=" + IntToStr(pid) +
+		"  served=" + IntToStr(served[sid] + 1) +
+		"  Q=" + IntToStr(q) +
+		"  EP=" + IntToStr(epNow)
+	);
 }
 
 void Master::logChargeStart(double t,int sid,int need,int active,int cap){
-    if (logMode == LOG_CSV) { logCSV(t, "CST", sid, -1, -1, -1, (double)active, (double)cap); return; }
+ if (logMode == LOG_NONE) return;
+	if (logMode == LOG_CSV) { logCSV(t, "CST", sid, -1, -1, -1, (double)active, (double)cap); return; }
 	AnsiString capStr = (cap <= 0) ? AnsiString("inf") : AnsiString((int)cap);
     timeline.push_back(
         AnsiString("t=") + f2(t,3) +
@@ -629,6 +635,7 @@ void Master::logChargeStart(double t,int sid,int need,int active,int cap){
 }
 
 void Master::logChargeEnd(double t,int sid,int add,int epNow){
+ if (logMode == LOG_NONE) return;
     if (logMode == LOG_CSV) { logCSV(t, "CEND", sid, -1, -1, epNow, (double)add, 0.0); return; }
     timeline.push_back(
         AnsiString("t=") + f2(t,3) +
@@ -639,6 +646,7 @@ void Master::logChargeEnd(double t,int sid,int add,int epNow){
 }
 
 void Master::logDrop(double t,int sid,int q,int qmax,int ep){
+ if (logMode == LOG_NONE) return;
     if (logMode == LOG_CSV) { logCSV(t, "DROP", sid, -1, q, ep, (double)qmax, 0.0); return; }
     AnsiString qStr = (qmax >= 0)
         ? (AnsiString(IntToStr(q)) + "/" + IntToStr(qmax))
@@ -675,6 +683,7 @@ AnsiString Master::stateLine() const {
 }
 
 void Master::logSnapshot(double t, const char* tag) {
+ if (logMode == LOG_NONE) return;
     if (!logStateEachEvent) return;
     if (logMode == LOG_CSV) {
         // 精簡 STAT：x1=hapBusy(0/1), x2=chargeActive；q/ep 用最新全系統即時值
@@ -731,13 +740,16 @@ AnsiString Master::dumpLogWithSummary() const {
     }
 
     // CSV 模式下，不再輸出大段 timeline（避免 OOM）
-    if (logMode == LOG_HUMAN) {
-        sl->Add("# === Timeline ===");
-        for (size_t i=0;i<timeline.size();++i) sl->Add(timeline[i]);
-        sl->Add("");
-    } else {
+	if (logMode == LOG_HUMAN) {
+		sl->Add("# === Timeline ===");
+		for (size_t i=0;i<timeline.size();++i) sl->Add(timeline[i]);
+		sl->Add("");
+	} else if (logMode == LOG_CSV) {
 		sl->Add("# log written to: " + logFileName);
-    }
+	} else { // LOG_NONE
+		sl->Add("# logging disabled (LOG_NONE)");
+	}
+
 
     AnsiString out = sl->Text;
     delete sl;

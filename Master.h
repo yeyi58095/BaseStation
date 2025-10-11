@@ -118,7 +118,7 @@ public:
 
 public: // logger
     // === 新：模式與檔案 ===
-	enum LogMode { LOG_HUMAN = 0, LOG_CSV = 1 };
+	enum LogMode { LOG_HUMAN = 0, LOG_CSV = 1, LOG_NONE = 2 };
 	LogMode     logMode    ;         // 預設 CSV
 	FILE*       flog         ;       // CSV 檔案句柄
 	AnsiString  logFileName ; // CSV 路徑

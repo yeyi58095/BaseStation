@@ -255,7 +255,8 @@ object Form5: TForm5
     Caption = 'LogMode'
     Items.Strings = (
       'CSV'
-      'Human')
+      'Human'
+      'None')
     TabOrder = 15
     OnClick = LogModeClick
   end

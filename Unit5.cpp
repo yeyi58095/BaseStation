@@ -351,13 +351,21 @@ void __fastcall TForm5::setParaButtonClick(TObject *Sender)
 
 void __fastcall TForm5::LogModeClick(TObject *Sender)
 {
-	  if (this->LogMode->ItemIndex == 0) {
-		master.logMode = master.LogMode::LOG_CSV;
-	} else {
-		master.logMode = master.LogMode::LOG_HUMAN;
-	}
+    switch (this->LogMode->ItemIndex) {
+        case 0: master.logMode = sim::Master::LOG_CSV;   break;
+        case 1: master.logMode = sim::Master::LOG_HUMAN; break;
+		case 2: master.logMode = sim::Master::LOG_NONE;  break;
+        default: master.logMode = sim::Master::LOG_CSV;  break;
+    }
+
+	// 若選擇 NONE，為了再快一點，可關掉逐事件快照
+    if (master.logMode == sim::Master::LOG_NONE) {
+        master.logStateEachEvent = false;
+    } else {
+        // 依你的需求自動開啟或保持原值
+        master.logStateEachEvent = (sensorAmount < 4);  // 你原本的策略
+    }
 }
-//---------------------------------------------------------------------------
 
 
 
