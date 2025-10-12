@@ -96,6 +96,7 @@ void Master::reset() {
     chargeActive = 0;
     chargeCountInt = 0.0;
 
+	sumE_tot = 0;
     felClear();
 
     const int N = (sensors ? (int)sensors->size() : 0);
@@ -830,5 +831,56 @@ AnsiString Master::leftPanelSummary() const {
     AnsiString out = sl->Text;
     delete sl;
     return out;
+}
+
+
+void Master::freeSensors() {
+
+}
+
+void Master::purgeHeavyData(bool keepSensors)
+{
+	//recordTrace = false;
+	shrinkToPlotOnly(keepSensors);
+}
+
+
+void Master::shrinkToPlotOnly(bool keepSensors)
+{
+	// 關 CSV、清 timeline、清 FEL —— 保留
+	if (flog) { fclose(flog); flog = NULL; }
+	timeline.clear(); std::vector<AnsiString>().swap(timeline);
+	felClear();
+
+	//這些「小型統計」不要歸零，讓 report*() 還有數字
+	// // 刪掉你原本的：
+	// sumQ.assign(N, 0.0);
+	// served.assign(N, 0);
+	// arrivals.assign(N, 0);
+	// busySidInt.assign(N, 0.0);
+	// sumE.assign(N, 0.0);
+	// busySumTx = 0.0;
+	// chargeCountInt = 0.0;
+	// sumE_tot = 0.0;
+
+	// 充電/傳輸暫存仍可歸零（保留外層大小）
+	// ...（保留你原本對 chargeNextDt / charging / txEpRemain 等的歸零）...
+
+	// 保留 trace* 與 trace*_all 不動（這就是「只留繪圖」）
+	// ...（不動）...
+
+	// keepSensors == false 時才刪 sensors + 縮外層 trace 尺寸
+	if (!keepSensors) {
+		// ...（保留你原本刪除 sensors 的程式）...
+		traceT.resize(0);
+		traceQ.resize(0);
+		traceMeanQ.resize(0);
+		traceE.resize(0);
+		traceRtx.resize(0);
+	}
+
+	// 為避免後續又長新資料
+	logStateEachEvent = false;
+    // 保留 recordTrace = true（只是你不再 run，就不會長）
 }
 

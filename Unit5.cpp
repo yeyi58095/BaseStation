@@ -32,7 +32,7 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	sensorAmount = 1;
 	Form5->selectSensorComboBox->ItemIndex = 0;
 	this->generatorButton->Visible = false;
-	this->LogMode->ItemIndex = 0;
+	this->LogMode->ItemIndex = 2;
 	this->plotButton->Caption = "reZoom";
 	this->leftPanel->Caption = "";
 	this->Label5->Visible = false;
@@ -147,68 +147,68 @@ void SaveMsgToFile(const AnsiString& msg, const AnsiString& fileName)
 	delete sl;
 }
 
-
 void __fastcall TForm5::DubugClick(TObject *Sender)
 {
+    this->Dubug->Caption = "Run";
+    rv::reseed(12345);
+    master.run();
+    runned = true;
 
-	this->Dubug->Caption = "Run";
-	rv::reseed(12345);
+	// 繪圖、報表（先拿到文字）
+    PlotTraceAll(true);
+	AnsiString msg = master.reportAll();
+    this->log->Caption = msg;
 
-	master.run();
+	AnsiString left = master.leftPanelSummary();
+	this->leftPanel->Caption = left;
 
-	runned = true;
-	//AnsiString all = master.reportAll();
-	//ShowMessage(all);
-	PlotTraceAll(true);
+    // 寫檔：報告 / log（若有需要）
+	SaveMsgToFile(master.dumpLogWithSummary(), "run_log.txt");
 
-	AnsiString msg = FloatToStr(master.switchover)+ " \n" + master.reportOne(0);
-	SaveMsgToFile(msg, "report.txt");
+	// >>> 若你在 UI 放一個 CheckBox：FreeAfterRun
+   //	if (this->FreeAfterRunCheckBox->Checked) {
 
-	// Unit5.cpp → TForm5::DubugClick() 內、run() 之前
-	if(sensorAmount >= 4){
-		master.logStateEachEvent = false;
-	}else{
-		master.logStateEachEvent = true;
-	}
 
-	AnsiString text = master.dumpLogWithSummary();
-	SaveMsgToFile(text, "run_log.txt");
-
-	this->DebugLabel->Caption = "" ;
-	msg = master.reportAll();
-	this->log->Caption = msg;
-
-	AnsiString s = master.leftPanelSummary();
-	this->leftPanel->Caption = s;
-
-	this->plotButtonClick(NULL);
+        // 如果你打算用檔案 Replay，那 sensors 也可一起刪。
+		// 若 ReplayDialog 會直接讀 CSV/HUMAN 檔，不依賴活體 master，就設 false
+		//master.purgeHeavyData(true); // 刪重資料
+		// 也可：master.purgeHeavyData(true); // 刪重資料但保留 sensors 指標本體
+   //	}
+					master.shrinkToPlotOnly(true);
+    this->plotButtonClick(NULL);
 }
-//---------------------------------------------------------------------------
+
+//--------------------------------------------------------------------------
 
 
 void __fastcall TForm5::selectSensorComboBoxChange(TObject *Sender)
 {
-	Sensor* s =  sensors[Form5->selectSensorComboBox->ItemIndex];
-	AnsiString msg  = s->toString();
-	Form5->log->Caption = msg;
-	//Chooser->Show();
+    if (sensors.empty()) { this->log->Caption = "No sensors."; return; }
+	int idx = Form5->selectSensorComboBox->ItemIndex;
+    if (idx < 0 || idx >= (int)sensors.size()) { this->log->Caption = "Invalid sensor index."; return; }
+    Sensor* s = sensors[idx];
+    AnsiString msg = s->toString();
+    Form5->log->Caption = msg;
 }
+
 //---------------------------------------------------------------------------
 
 void __fastcall TForm5::selectVisitComboBoxChange(TObject *Sender)
 {
-	int sid = this->selectVisitComboBox->ItemIndex;
-	if(sid == 0){
-		AnsiString msg = master.reportAll();
-		this->log->Caption = msg;
-		 PlotTraceAll(true);
-		return ;
-	}
-	PlotTraceOne(sid-1);
-	AnsiString msg = /*this->sensors[sid-1]->toString() + "\n" +*/ master.reportOne(sid - 1);
-	//ShowMessage(msg);
-	this->log->Caption = msg;
-	}
+    if (master.traceT.empty()) { this->log->Caption = "No trace."; return; }
+    int sid = this->selectVisitComboBox->ItemIndex;
+    if (sid == 0) {
+        AnsiString msg = master.reportAll();
+        this->log->Caption = msg;
+        PlotTraceAll(true);
+        return;
+    }
+    if (sid - 1 < 0 || sid - 1 >= (int)master.traceT.size()) { this->log->Caption = "Invalid trace index."; return; }
+    PlotTraceOne(sid - 1);
+    AnsiString msg = master.reportOne(sid - 1);
+    this->log->Caption = msg;
+}
+
 //---------------------------------------------------------------------------
 
 
@@ -376,5 +376,12 @@ void __fastcall TForm5::replayButtonClick(TObject *Sender)
 }
 //---------------------------------------------------------------------------
 
+
+
+void __fastcall TForm5::FreeMemoryClick(TObject *Sender)
+{
+  master.shrinkToPlotOnly(true);
+}
+//---------------------------------------------------------------------------
 
 

@@ -51,6 +51,7 @@ __published:	// IDE-managed Components
 	TLabel *leftPanel;
 	TRadioGroup *LogMode;
 	TButton *replayButton;
+	TButton *FreeMemory;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);
@@ -67,6 +68,7 @@ __published:	// IDE-managed Components
 	void __fastcall setParaButtonClick(TObject *Sender);
 	void __fastcall LogModeClick(TObject *Sender);
 	void __fastcall replayButtonClick(TObject *Sender);
+	void __fastcall FreeMemoryClick(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);

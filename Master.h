@@ -75,7 +75,7 @@ public:
     std::vector<double> traceT_all, traceQ_all, traceMeanQ_all;
 
     std::vector< std::vector<double> > traceE;    // EP(t)
-    std::vector< std::vector<double> > traceRtx;  // r_tx
+	std::vector< std::vector<double> > traceRtx;  // r_tx
     std::vector<double> traceE_all;               // sum EP (instant)
     std::vector<double> traceEavg_all;            // avg EP (instant)
 
@@ -83,7 +83,7 @@ public:
     std::vector<double> sumE;   // \int EP_i(t) dt
     double sumE_tot;            // \int \sum_i EP_i(t) dt
 
-    // ★ TX逐步扣用的狀態
+	// ★ TX逐步扣用的狀態
     std::vector<int>    txEpRemain;   // 尚需扣除的 EP 次數
     std::vector<double> txTickPeriod; // 每扣 1EP 的時間 (= 1 / R)
     std::vector<double> txStartT;     // 真正開始傳送 (過完 switchover)
@@ -148,9 +148,17 @@ public: // logger
     AnsiString stateLine() const;
 
     int  needEPForHead(int sid) const;      // 目前回傳 r_tx；若要跟 ST 有關，在此修改
-    void startChargeToFull(int sid);        // 排一段「補到滿」的充電
-    AnsiString leftPanelSummary() const;
-};
+	void startChargeToFull(int sid);        // 排一段「補到滿」的充電
+	AnsiString leftPanelSummary() const;
+    // 釋放重資料；keepSensors=true 表示保留 Sensor 指標，不刪物件
+	void purgeHeavyData(bool keepSensors);
+
+	// 專門刪掉 sensors（delete 後清 vector）
+	void freeSensors();
+	// 在 class Master 的 public 區域加上：
+	void shrinkToPlotOnly(bool keepSensors);
+
+	};
 
 } // namespace sim
 

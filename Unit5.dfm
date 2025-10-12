@@ -103,7 +103,7 @@ object Form5: TForm5
     OnChange = selectSensorComboBoxChange
   end
   object Dubug: TButton
-    Left = 303
+    Left = 307
     Top = 19
     Width = 75
     Height = 25
@@ -268,5 +268,14 @@ object Form5: TForm5
     Caption = 'replay'
     TabOrder = 16
     OnClick = replayButtonClick
+  end
+  object FreeMemory: TButton
+    Left = 720
+    Top = 299
+    Width = 75
+    Height = 25
+    Caption = 'FreeMemory'
+    TabOrder = 17
+    OnClick = FreeMemoryClick
   end
 end
