@@ -69,10 +69,10 @@ object Form5: TForm5
     Height = 13
   end
   object leftPanel: TLabel
-    Left = 30
-    Top = 160
+    Left = 32
+    Top = 199
     Width = 45
-    Height = 13
+    Height = 16
     Caption = 'LeftPanel'
   end
   object sensorAmountEdit: TEdit
@@ -277,5 +277,17 @@ object Form5: TForm5
     Caption = 'FreeMemory'
     TabOrder = 17
     OnClick = FreeMemoryClick
+  end
+  object ChargeModeGroup: TRadioGroup
+    Left = 164
+    Top = 159
+    Width = 133
+    Height = 42
+    Caption = 'ChargeModeGroup'
+    Items.Strings = (
+      'always charge'
+      'only less power')
+    TabOrder = 18
+    OnClick = ChargeModeGroupClick
   end
 end

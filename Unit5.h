@@ -52,6 +52,7 @@ __published:	// IDE-managed Components
 	TRadioGroup *LogMode;
 	TButton *replayButton;
 	TButton *FreeMemory;
+	TRadioGroup *ChargeModeGroup;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);
@@ -69,6 +70,7 @@ __published:	// IDE-managed Components
 	void __fastcall LogModeClick(TObject *Sender);
 	void __fastcall replayButtonClick(TObject *Sender);
 	void __fastcall FreeMemoryClick(TObject *Sender);
+	void __fastcall ChargeModeGroupClick(TObject *Sender);
 private:	// User declarations
 public:		// User declarations
 	__fastcall TForm5(TComponent* Owner);

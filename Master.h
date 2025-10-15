@@ -31,7 +31,8 @@ class Master {
 public:
     std::vector<Sensor*>* sensors;
 
-    EvNode*  felHead;
+	EvNode*  felHead;
+	bool alwaysCharge;
 
     // time/settings
     double   endTime;

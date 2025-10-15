@@ -29,7 +29,8 @@ Master::Master()
   busySumTx(0.0), chargeCountInt(0.0),
   recordTrace(true),
   keepLogIds(200),
-  logStateEachEvent(true)  // default ON
+  logStateEachEvent(true),  // default ON
+   alwaysCharge(false)
 {
     felHead = new EvNode(0.0, EV_DP_ARRIVAL, -1);
 	felHead->next = 0;
@@ -469,13 +470,23 @@ void Master::scheduleIfIdle() {
         if (charging[i]) continue;
 		if (s->energy >= s->E_cap) continue;
 
-		bool headBlocked = ((int)s->q.size() > 0) && (s->energy < s->frontNeedEP());
-        int gate = std::max(s->r_tx, needEPForHead(i));
-		if (!headBlocked && s->energy >= gate) continue;
+		bool needCharge = false;
 
-        startChargeToFull(i);
-        --freeSlots;
-    }
+		if (alwaysCharge) {
+			// 隨時充電：只要沒滿就充
+			needCharge = true;
+		} else {
+			// 原本邏輯：電量不足時才充
+			bool headBlocked = ((int)s->q.size() > 0) && (s->energy < s->frontNeedEP());
+			int gate = std::max(s->r_tx, needEPForHead(i));
+			needCharge = (headBlocked || s->energy < gate);
+		}
+
+		if (needCharge) {
+			startChargeToFull(i);
+			--freeSlots;
+		}
+	}
 }
 
 AnsiString Master::reportOne(int sid) const {

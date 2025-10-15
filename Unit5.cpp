@@ -39,6 +39,9 @@ __fastcall TForm5::TForm5(TComponent* Owner)
 	this->maxCharginSlotEdit->Visible = false;
 	this->Label6->Visible = false;
 
+	this->ChargeModeGroup->ItemIndex = 0;
+	master.alwaysCharge = true;
+
 	// for plot
 		// 左軸：Queue
 	Chart1->LeftAxis->Title->Caption   = "Queue size";
@@ -174,7 +177,7 @@ void __fastcall TForm5::DubugClick(TObject *Sender)
 		//master.purgeHeavyData(true); // 刪重資料
 		// 也可：master.purgeHeavyData(true); // 刪重資料但保留 sensors 指標本體
    //	}
-					master.shrinkToPlotOnly(true);
+	master.shrinkToPlotOnly(true);
     this->plotButtonClick(NULL);
 }
 
@@ -381,6 +384,14 @@ void __fastcall TForm5::replayButtonClick(TObject *Sender)
 void __fastcall TForm5::FreeMemoryClick(TObject *Sender)
 {
   master.shrinkToPlotOnly(true);
+}
+//---------------------------------------------------------------------------
+
+
+void __fastcall TForm5::ChargeModeGroupClick(TObject *Sender)
+{
+	int mode = this->ChargeModeGroup->ItemIndex;
+	master.alwaysCharge = (mode != 1);
 }
 //---------------------------------------------------------------------------
 

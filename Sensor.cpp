@@ -10,7 +10,7 @@ Sensor::Sensor(int id)
   ITdistri(DIST_EXPONENTIAL), STdistri(DIST_EXPONENTIAL),
   ITpara1(1.0), ITpara2(0.0),
   STpara1(1.5), STpara2(0.0),
-  energy(0), E_cap(100), r_tx(5), charge_rate(1.0),
+  energy(0), E_cap(100), r_tx(1), charge_rate(1.0),
   Qmax(100000), drops(0),
   pktSeq(0), init_preload(0),
   // default energy-cost model: downward-compatible
