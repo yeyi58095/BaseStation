@@ -44,6 +44,7 @@ double Sensor::sampleST() const {
 }
 
 int Sensor::energyForSt(double st) const {
+	return 1;
     if (st < 0) st = 0;
 	double need =  txCostPerSec * st;
 	int needInt = (int)std::ceil(need - 1e-12);
@@ -164,7 +165,8 @@ AnsiString Sensor::toString() const {
     msg += "  Charging rate  = " + FloatToStrF(charge_rate, ffFixed, 7, 3) + "  (exp waiting, mean 1/λ)\n";
     msg += "  R (EP/sec)     = " + FloatToStrF(txCostPerSec, ffFixed, 7, 3) + "\n";
     msg += "  Threshold      = " + IntToStr(r_tx) + "  (min EP to start a transmission)\n";
-    msg += "  Energy model   = ceil(R * service_time)\n";
+	//msg += "  Energy model   = ceil(R * service_time)\n";
+      msg += "  Energy model   = 1 EP per packet (fixed)\n";
 
     return msg;
 }
