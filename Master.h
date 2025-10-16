@@ -158,8 +158,25 @@ public: // logger
 	void freeSensors();
 	// 在 class Master 的 public 區域加上：
 	void shrinkToPlotOnly(bool keepSensors);
-
+public:
+	struct KPIs {
+		double L;           // 平均系統內數量
+		double W;           // 平均系統逗留時間(秒)
+		double Lq;          // 平均隊列長度
+		double Wq;          // 平均等待時間(秒)
+		double loss_rate;   // 丟包率 D/A
+		double EP_mean;     // EP 平均（全體平均）
+		double avg_delay_ms;// 主要輸出(毫秒) = W*1000
+		int    S_total;     // 服務總數
+		int    A_total;     // 到達總數
 	};
+
+	// 根據現有統計欄位計算 KPI（不寫檔、不動內部狀態）
+	bool computeKPIs(KPIs& out) const;
+	};
+
+
+
 
 } // namespace sim
 

@@ -895,3 +895,28 @@ void Master::shrinkToPlotOnly(bool keepSensors)
     // 保留 recordTrace = true（只是你不再 run，就不會長）
 }
 
+
+bool Master::computeKPIs(Master::KPIs& o) const {
+    if (endTime <= 0.0) return false;
+    int i; int A=0,S=0; double sumQtot=0.0, busyInt=0.0;
+    for (i=0;i<(int)arrivals.size();++i) A += arrivals[i];
+    for (i=0;i<(int)served.size();  ++i) S += served[i];
+    for (i=0;i<(int)sumQ.size();     ++i) sumQtot += sumQ[i];
+    for (i=0;i<(int)busySidInt.size();++i) busyInt += busySidInt[i];
+
+    double Lq = sumQtot / endTime;
+    double L  = Lq + busyInt / endTime;
+    double Sr = (endTime>0)? (double)S/endTime : 0.0; // 觀測到的服務率
+    double Wq = (Sr>EPS)? Lq/Sr : 0.0;
+    double W  = (Sr>EPS)? L /Sr : 0.0;
+
+    double loss = (A>0)? (double)std::max(0, A-S)/A : 0.0;
+    double EPm  = 0.0;
+    int N = sensors? (int)sensors->size():0;
+    if (N>0 && endTime>0) EPm = (sumE_tot/endTime)/(double)N;
+
+    o.L=L; o.W=W; o.Lq=Lq; o.Wq=Wq; o.loss_rate=loss; o.EP_mean=EPm;
+    o.avg_delay_ms = W*1000.0; o.S_total=S; o.A_total=A;
+    return true;
+}
+

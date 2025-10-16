@@ -72,7 +72,7 @@ object Form5: TForm5
     Left = 32
     Top = 199
     Width = 45
-    Height = 16
+    Height = 13
     Caption = 'LeftPanel'
   end
   object sensorAmountEdit: TEdit
