@@ -1,91 +1,80 @@
-#include "Engine.h"
+ï»¿#include "Engine.h"
 #include "Master.h"
 #include <fstream>
 #include <time.h>
 #include <vcl.h>
-#include "HeadlessBridge.h"  // <== ·s¼W³o¦æ
+#include "HeadlessBridge.h"  // <== æ–°å¢žé€™è¡Œ
 
+   static void write_csv(const char* path,
+	double mu, double e, int C, double lambda, int T, unsigned int seed,
+	double avg_delay_ms, double L, double W, double loss_rate, double EP_mean,
+	const char* versionStr);
 
-static void write_json(const char* path,
-    double mu, double e, int C, double lambda, int T, unsigned int seed,
-    double avg_delay_ms, double L, double W, double loss_rate, double EP_mean,
-    const char* versionStr)
+int RunHeadlessEngine(
+        double mu, double e, int C, double lambda, int T, unsigned int seed,
+        int N, int r_tx, int slots, int alwaysChargeFlag,
+        const char* outPath, const char* versionStr)
 {
-    std::ofstream f(path);
+    if (outPath == NULL) {
+        return -99;
+    }
+
+    double avg_delay_ms = 0.0;
+    double L = 0.0, W = 0.0, loss = 0.0, EP_mean = 0.0;
+
+    int rc = RunSimulationCore(mu, e, C, lambda, T, seed,
+                               N, r_tx, slots, alwaysChargeFlag,
+                               &avg_delay_ms, &L, &W, &loss, &EP_mean);
+    if (rc != 0) {
+        return rc;
+    }
+
+    // ðŸ”„ æ”¹æˆ CSV ç‰ˆæœ¬
+    write_csv(outPath, mu, e, C, lambda, T, seed,
+              avg_delay_ms, L, W, loss, EP_mean, versionStr);
+
+    return 0;
+}
+
+static void write_csv(const char* path,
+	double mu, double e, int C, double lambda, int T, unsigned int seed,
+	double avg_delay_ms, double L, double W, double loss_rate, double EP_mean,
+	const char* versionStr)
+{
+    bool fileExists = false;
+    {
+        std::ifstream fin(path);
+        fileExists = fin.good();
+    }
+
+    std::ofstream f(path, std::ios::app); // append æ¨¡å¼
     if (!f.is_open()) {
-		//MessageBoxA(NULL, "write_json: cannot open output file!", "Error", MB_OK);
+        // MessageBoxA(NULL, "write_csv: cannot open output file!", "Error", MB_OK);
         return;
     }
 
-    // ---- ¦w¥þÀË¬d versionStr ----
-    const char* safeVer = "BaseStation";
-    // ÀË¬d«ü¼Ð¬O§_¬Ý°_¨Ó¥iÅª
-    if (versionStr != NULL) {
-		__try {
-            // ¹Á¸ÕÅª¨úÀY´X­Ó¦ì¤¸²Õ¡AÁ×§KÄaªÅ crash
-            volatile char c = versionStr[0];
-            (void)c;
-            safeVer = versionStr;
-        }
-        __except(EXCEPTION_EXECUTE_HANDLER) {
-            // crash ´N¯d BaseStation
-			//MessageBoxA(NULL, "write_json: invalid versionStr pointer, using default.", "Warning", MB_OK);
-        }
+    // ç¬¬ä¸€æ¬¡å¯«å…¥æ™‚åŠ ä¸Šè¡¨é ­
+    if (!fileExists) {
+        f << "mu,e,C,lambda,T,seed,avg_delay_ms,L,W,loss_rate,EP_mean,version,timestamp\n";
     }
 
-    f << "{\n";
-    f << "  \"mu\":" << mu << ",\n";
-    f << "  \"e\":" << e << ",\n";
-    f << "  \"C\":" << C << ",\n";
-    f << "  \"lambda\":" << lambda << ",\n";
-    f << "  \"T\":" << T << ",\n";
-    f << "  \"seed\":" << seed << ",\n";
-    f << "  \"metrics\": {\n";
-    f << "    \"avg_delay_ms\":" << avg_delay_ms << ",\n";
-    f << "    \"L\":" << L << ",\n";
-    f << "    \"W\":" << W << ",\n";
-    f << "    \"loss_rate\":" << loss_rate << ",\n";
-    f << "    \"EP_mean\":" << EP_mean << "\n";
-    f << "  },\n";
-    f << "  \"version\": \"" << safeVer << "\",\n";
-    f << "  \"timestamp\": " << (long)time(NULL) << "\n";
-    f << "}\n";
+    long timestamp = (long)time(NULL);
+    const char* safeVer = (versionStr != NULL) ? versionStr : "BaseStation";
+
+    f << mu << ','
+      << e << ','
+      << C << ','
+      << lambda << ','
+      << T << ','
+      << seed << ','
+      << avg_delay_ms << ','
+      << L << ','
+      << W << ','
+      << loss_rate << ','
+      << EP_mean << ','
+      << '"' << safeVer << '"' << ','
+      << timestamp << '\n';
 
     f.close();
 }
 
-extern "C" int RunHeadlessEngine(
-	double mu, double e, int C, double lambda, int T, unsigned int seed,
-	const char* outPath, const char* versionStr)
-{
-	//MessageBoxA(NULL, "Entered RunHeadlessEngine()", "Debug", MB_OK);
-
-	if (outPath == NULL) {
-		//MessageBoxA(NULL, "outPath is NULL!", "Error", MB_OK);
-		return -99;
-	}
-
-	double avg_delay_ms=0, L=0, W=0, loss=0, EP_mean=0;
-
-	// ===== ÀË¬d©I¥s RunSimulationCore «e«á =====
-	//MessageBoxA(NULL, "Before RunSimulationCore()", "Debug", MB_OK);
-	int rc = RunSimulationCore(mu, e, C, lambda, T, seed,
-							   &avg_delay_ms, &L, &W, &loss, &EP_mean);
-	//MessageBoxA(NULL, "After RunSimulationCore()", "Debug", MB_OK);
-
-	if (rc != 0) {
-		char buf[128];
-		sprintf(buf, "RunSimulationCore returned %d", rc);
-		MessageBoxA(NULL, buf, "Error", MB_OK);
-		return rc;
-	}
-
-	//MessageBoxA(NULL, "Before write_json()", "Debug", MB_OK);
-
-	write_json(outPath, mu, e, C, lambda, T, seed,
-			   avg_delay_ms, L, W, loss, EP_mean, versionStr);
-
-	//MessageBoxA(NULL, "After write_json()", "Debug", MB_OK);
-
-	return 0;
-}

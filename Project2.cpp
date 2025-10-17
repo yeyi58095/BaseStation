@@ -20,8 +20,10 @@ USEFORM("ParaSetterDialog.cpp", parameterSetter);
 //---------------------------------------------------------------------------
 extern "C" int RunHeadlessEngine(
     double mu, double e, int C, double lambda, int T, unsigned int seed,
-    const char* outPath
+    int N, int r_tx, int slots, int alwaysChargeFlag,
+    const char* outPath, const char* versionStr
 );
+
 
 // 如果你尚未實作引擎，先提供一個弱化的「偵錯訊息」版本，避免你誤會有結果就是對的。
 // 實際要跑正確數字：請刪除下面這個假的實作，並在其他 .cpp 完成真的 RunHeadlessEngine。
@@ -122,20 +124,19 @@ static int DoHeadless() {
     std::ofstream flog("headless_log.txt");
     flog << "[Headless] start\n";
 
-    // 預設參數（可被命令列覆蓋）
-    double mu      = 3.0;
-    double e       = 2.4;
-    int    C       = 5;
-    double lambda  = 1.2;
-    int    T       = 10000;
+    double mu = 3.0, e = 2.4, lambda = 1.2;
+    int    C  = 5, T = 10000;
     unsigned int seed = (unsigned int)time(NULL);
-    AnsiString outPath = "result.txt";
+    AnsiString outPath = "result.json";
 
-    // 讀取命令列
-    double tmpd;
-    int tmpi;
-    unsigned int tmpu;
-    AnsiString tmps;
+    // 新增
+    int N = 1;
+    int r_tx = 1;
+    int slots = 0;                  // 0 = unlimited
+    int alwaysChargeFlag = 1;       // 預設對齊 GUI: true
+    AnsiString versionStr = "BaseStation";
+
+    double tmpd; int tmpi; unsigned int tmpu; AnsiString tmps;
 
     if (GetArgD(L"mu", tmpd)) mu = tmpd;
     if (GetArgD(L"e", tmpd))  e  = tmpd;
@@ -145,26 +146,29 @@ static int DoHeadless() {
     if (GetArgU(L"seed", tmpu)) seed = tmpu;
     if (GetArgS(L"out", tmps)) outPath = tmps;
 
+    if (GetArgI(L"N", tmpi)) N = tmpi;
+    if (GetArgI(L"rtx", tmpi)) r_tx = tmpi;
+    if (GetArgI(L"slots", tmpi)) slots = tmpi;
+    if (HasFlag(L"alwaysCharge")) alwaysChargeFlag = 1; else alwaysChargeFlag = 0;
+
+    if (GetArgS(L"version", tmps)) versionStr = tmps;
+
     flog << "params: mu="<<mu<<", e="<<e<<", C="<<C
          <<", lambda="<<lambda<<", T="<<T<<", seed="<<seed
-         <<", out="<<outPath.c_str()<<"\n";
+         <<", N="<<N<<", rtx="<<r_tx<<", slots="<<slots
+         <<", alwaysCharge="<<alwaysChargeFlag
+         <<", out="<<outPath.c_str()
+         <<", version="<<versionStr.c_str()<<"\n";
 
-    // 嘗試呼叫「你真實的模擬引擎」
-    int rc = -9999;
-
-    // 若你已在別處實作 RunHeadlessEngine，下面這行就會成功連結並回傳 0。
-    // 若尚未實作，會由 fallback 寫出警告到 headless_log.txt。
-    rc = RunHeadlessEngine(mu, e, C, lambda, T, seed, outPath.c_str());
-
-    if (rc != 0) {
-        // 呼叫失敗，使用 fallback 告知你還沒接上引擎（不寫假結果）
-        rc = RunHeadlessEngine_Fallback(mu, e, C, lambda, T, seed, outPath.c_str());
-    }
+    int rc = RunHeadlessEngine(mu, e, C, lambda, T, seed,
+                               N, r_tx, slots, alwaysChargeFlag,
+                               outPath.c_str(), versionStr.c_str());
 
     flog << "[Headless] done, rc=" << rc << "\n";
     flog.close();
     return rc;
 }
+
 
 //---------------------------------------------------------------------------
 

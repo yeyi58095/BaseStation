@@ -153,31 +153,32 @@ void SaveMsgToFile(const AnsiString& msg, const AnsiString& fileName)
 void __fastcall TForm5::DubugClick(TObject *Sender)
 {
     this->Dubug->Caption = "Run";
-    rv::reseed(12345);
+
+    unsigned int seed = 12345;
+    try {
+        if (this->SeedEdit->Text != "") {
+            int s = StrToInt(this->SeedEdit->Text);
+            if (s < 0) s = -s;
+            seed = (unsigned int)s;
+        }
+    } catch (...) { /* keep default */ }
+
+    rv::reseed(seed);        // <--- 唯一 reseed 的地方（GUI）
+
     master.run();
     runned = true;
 
-	// 繪圖、報表（先拿到文字）
     PlotTraceAll(true);
-	AnsiString msg = master.reportAll();
+    AnsiString msg = master.reportAll();
     this->log->Caption = msg;
 
-	AnsiString left = master.leftPanelSummary();
-	this->leftPanel->Caption = left;
+    AnsiString left = master.leftPanelSummary();
+    this->leftPanel->Caption = left;
+    SaveMsgToFile(left, "report.txt");
 
-    // 寫檔：報告 / log（若有需要）
-	SaveMsgToFile(master.dumpLogWithSummary(), "run_log.txt");
+    SaveMsgToFile(master.dumpLogWithSummary(), "run_log.txt");
 
-	// >>> 若你在 UI 放一個 CheckBox：FreeAfterRun
-   //	if (this->FreeAfterRunCheckBox->Checked) {
-
-
-        // 如果你打算用檔案 Replay，那 sensors 也可一起刪。
-		// 若 ReplayDialog 會直接讀 CSV/HUMAN 檔，不依賴活體 master，就設 false
-		//master.purgeHeavyData(true); // 刪重資料
-		// 也可：master.purgeHeavyData(true); // 刪重資料但保留 sensors 指標本體
-   //	}
-	master.shrinkToPlotOnly(true);
+    master.shrinkToPlotOnly(true);
     this->plotButtonClick(NULL);
 }
 
@@ -394,6 +395,7 @@ void __fastcall TForm5::ChargeModeGroupClick(TObject *Sender)
 	master.alwaysCharge = (mode != 1);
 }
 //---------------------------------------------------------------------------
+
 
 
 

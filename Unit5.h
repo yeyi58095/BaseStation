@@ -53,6 +53,8 @@ __published:	// IDE-managed Components
 	TButton *replayButton;
 	TButton *FreeMemory;
 	TRadioGroup *ChargeModeGroup;
+	TLabel *Label7;
+	TEdit *SeedEdit;
 	void __fastcall sensorAmountEditChange(TObject *Sender);
 	void __fastcall generatorButtonClick(TObject *Sender);
 	void __fastcall DubugClick(TObject *Sender);

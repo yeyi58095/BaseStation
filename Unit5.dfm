@@ -75,6 +75,13 @@ object Form5: TForm5
     Height = 13
     Caption = 'LeftPanel'
   end
+  object Label7: TLabel
+    Left = 16
+    Top = 159
+    Width = 24
+    Height = 13
+    Caption = 'Seed'
+  end
   object sensorAmountEdit: TEdit
     Left = 120
     Top = 21
@@ -94,8 +101,8 @@ object Form5: TForm5
     OnClick = generatorButtonClick
   end
   object selectSensorComboBox: TComboBox
-    Left = 127
-    Top = 46
+    Left = 120
+    Top = 48
     Width = 145
     Height = 21
     TabOrder = 2
@@ -279,8 +286,8 @@ object Form5: TForm5
     OnClick = FreeMemoryClick
   end
   object ChargeModeGroup: TRadioGroup
-    Left = 164
-    Top = 159
+    Left = 145
+    Top = 143
     Width = 133
     Height = 42
     Caption = 'ChargeModeGroup'
@@ -289,5 +296,13 @@ object Form5: TForm5
       'only less power')
     TabOrder = 18
     OnClick = ChargeModeGroupClick
+  end
+  object SeedEdit: TEdit
+    Left = 46
+    Top = 151
+    Width = 68
+    Height = 21
+    TabOrder = 19
+    Text = '12345'
   end
 end
