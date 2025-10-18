@@ -58,7 +58,7 @@ static void CreateSensorsForHeadless(double lambda, double mu, double e, int C,
 int RunSimulationCore(
         double mu, double e, int C, double lambda, int T, unsigned int seed,
         int N, int r_tx, int slots, int alwaysChargeFlag,  // <-- ·s¼W
-        double* avg_delay_ms, double* L, double* W, double* loss_rate, double* EP_mean)
+		double* avg_delay_ms, double* L, double* W, double* loss_rate, double* EP_mean, double* P_es)
 {
     if (!avg_delay_ms || !L || !W || !loss_rate || !EP_mean) return -10;
     if (seed == 0) seed = (unsigned int)time(NULL);
@@ -91,8 +91,9 @@ int RunSimulationCore(
     *avg_delay_ms = kpi.avg_delay_ms;
     *L            = kpi.L;
     *W            = kpi.W;
-    *loss_rate    = kpi.loss_rate;
-    *EP_mean      = kpi.EP_mean;
+	*loss_rate    = kpi.loss_rate;
+	*EP_mean      = kpi.EP_mean;
+	if (P_es) *P_es = kpi.P_es;
 
     int i;
     for (i = 0; i < (int)sensors.size(); ++i) delete sensors[i];

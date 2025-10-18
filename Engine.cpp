@@ -5,10 +5,11 @@
 #include <vcl.h>
 #include "HeadlessBridge.h"  // <== 新增這行
 
-   static void write_csv(const char* path,
-	double mu, double e, int C, double lambda, int T, unsigned int seed,
-	double avg_delay_ms, double L, double W, double loss_rate, double EP_mean,
-	const char* versionStr);
+// ---- 修正：前向宣告要包含 P_es ----
+static void write_csv(const char* path,
+    double mu, double e, int C, double lambda, int T, unsigned int seed,
+    double avg_delay_ms, double L, double W, double loss_rate, double EP_mean, double P_es,
+    const char* versionStr);
 
 int RunHeadlessEngine(
         double mu, double e, int C, double lambda, int T, unsigned int seed,
@@ -21,25 +22,27 @@ int RunHeadlessEngine(
 
     double avg_delay_ms = 0.0;
     double L = 0.0, W = 0.0, loss = 0.0, EP_mean = 0.0;
+    double P_es = 0.0;
 
     int rc = RunSimulationCore(mu, e, C, lambda, T, seed,
                                N, r_tx, slots, alwaysChargeFlag,
-                               &avg_delay_ms, &L, &W, &loss, &EP_mean);
+                               &avg_delay_ms, &L, &W, &loss, &EP_mean, &P_es);
     if (rc != 0) {
         return rc;
     }
 
-    // 🔄 改成 CSV 版本
+    // 🔄 CSV 輸出（帶上 P_es）
     write_csv(outPath, mu, e, C, lambda, T, seed,
-              avg_delay_ms, L, W, loss, EP_mean, versionStr);
+              avg_delay_ms, L, W, loss, EP_mean, P_es, versionStr);
 
     return 0;
 }
 
+// ---- 修正：定義也要包含 P_es，且在 P_es 後面要有逗號 ----
 static void write_csv(const char* path,
-	double mu, double e, int C, double lambda, int T, unsigned int seed,
-	double avg_delay_ms, double L, double W, double loss_rate, double EP_mean,
-	const char* versionStr)
+    double mu, double e, int C, double lambda, int T, unsigned int seed,
+    double avg_delay_ms, double L, double W, double loss_rate, double EP_mean, double P_es,
+    const char* versionStr)
 {
     bool fileExists = false;
     {
@@ -55,7 +58,7 @@ static void write_csv(const char* path,
 
     // 第一次寫入時加上表頭
     if (!fileExists) {
-        f << "mu,e,C,lambda,T,seed,avg_delay_ms,L,W,loss_rate,EP_mean,version,timestamp\n";
+        f << "mu,e,C,lambda,T,seed,avg_delay_ms,L,W,loss_rate,EP_mean,P_es,version,timestamp\n";
     }
 
     long timestamp = (long)time(NULL);
@@ -72,6 +75,7 @@ static void write_csv(const char* path,
       << W << ','
       << loss_rate << ','
       << EP_mean << ','
+      << P_es << ','
       << '"' << safeVer << '"' << ','
       << timestamp << '\n';
 

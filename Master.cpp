@@ -55,7 +55,10 @@ void Master::setSensors(std::vector<Sensor*>* v) {
     arrivals.assign(N, 0);
     busySidInt.assign(N, 0.0);
 
-    chargeNextDt.assign(N, 0.0);
+	chargeNextDt.assign(N, 0.0);
+	zeroEP_sum = 0.0;
+	zeroEP_time.assign(N, 0.0);
+
 
     charging.assign(N, false);
     pendCharge.assign(N, 0);
@@ -100,13 +103,15 @@ void Master::reset() {
 	sumE_tot = 0;
     felClear();
 
-    const int N = (sensors ? (int)sensors->size() : 0);
-    for (int i=0;i<N;++i) {
-        sumQ[i] = 0.0; served[i] = 0; arrivals[i] = 0;
-        charging[i] = false; pendCharge[i] = 0;
-        chargeStartT[i] = 0.0; chargeEndT[i] = 0.0;
-        busySidInt[i] = 0.0;
-        sumE[i] = 0.0;
+	zeroEP_sum = 0.0;
+	const int N = (sensors ? (int)sensors->size() : 0);
+	for (int i=0;i<N;++i) {
+		sumQ[i] = 0.0; served[i] = 0; arrivals[i] = 0;
+		charging[i] = false; pendCharge[i] = 0;
+		chargeStartT[i] = 0.0; chargeEndT[i] = 0.0;
+		busySidInt[i] = 0.0;
+		sumE[i] = 0.0;
+		zeroEP_time[i] = 0.0;
 
         chargeNextDt[i] = 0.0;
 
@@ -366,13 +371,18 @@ void Master::accumulate() {
     int totalEP_inst = 0;
 
     double sliceEPsum = 0.0;
+	int zeroCnt = 0 ;
+	for (int i = 0; i < N; ++i) {
+		Sensor* s = (*sensors)[i];
+		int qlen = (int)s->q.size();
 
-    for (int i = 0; i < N; ++i) {
-        Sensor* s = (*sensors)[i];
-        int qlen = (int)s->q.size();
+		totalQ       += qlen;
+		totalEP_inst += s->energy;
 
-        totalQ       += qlen;
-        totalEP_inst += s->energy;
+		if (s->energy == 0) {
+			zeroEP_time[i] += dt;
+			zeroCnt += 1;
+		}
 
         sumQ[i] += dt * qlen;
 
@@ -390,7 +400,8 @@ void Master::accumulate() {
         }
     }
 
-    sumE_tot += dt * sliceEPsum;
+	sumE_tot += dt * sliceEPsum;
+	zeroEP_sum += dt * (double)zeroCnt;
 
     if (hapTxBusy && hapTxSid >= 0 && hapTxSid < (int)busySidInt.size()) {
         busySidInt[hapTxSid] += dt;
@@ -912,8 +923,17 @@ bool Master::computeKPIs(Master::KPIs& o) const {
 
     double loss = (A>0)? (double)std::max(0, A-S)/A : 0.0;
     double EPm  = 0.0;
-    int N = sensors? (int)sensors->size():0;
-    if (N>0 && endTime>0) EPm = (sumE_tot/endTime)/(double)N;
+	int N = sensors? (int)sensors->size():0;
+	if (N>0 && endTime>0) EPm = (sumE_tot/endTime)/(double)N;
+
+	N = sensors ? (int)sensors->size() : 0;
+	double P_es = 0.0;
+	if (N > 0 && endTime > 0.0) {
+		// 時間平均、再除以 N（多感測器時是“任一隨機感測器 EP==0”的機率）
+		P_es = (zeroEP_sum / endTime) / (double)N;
+	}
+	o.P_es = P_es;
+
 
     o.L=L; o.W=W; o.Lq=Lq; o.Wq=Wq; o.loss_rate=loss; o.EP_mean=EPm;
     o.avg_delay_ms = W*1000.0; o.S_total=S; o.A_total=A;

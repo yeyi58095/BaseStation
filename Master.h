@@ -38,7 +38,12 @@ public:
     double   endTime;
     double   now;
     double   prev;
-    static double EPS;
+	static double EPS;
+
+	// 累積「EP==0」的時間（總和）
+	double zeroEP_sum;              // ∫ (EP==0 的感測器數) dt
+	std::vector<double> zeroEP_time;// 各感測器 ∫ 1[EP==0] dt（如需 per-sensor）
+
 
     // HAP TX pipeline (one at a time)
     bool   hapTxBusy;
@@ -169,6 +174,7 @@ public:
 		double avg_delay_ms;// 主要輸出(毫秒) = W*1000
 		int    S_total;     // 服務總數
 		int    A_total;     // 到達總數
+		 double P_es;
 	};
 
 	// 根據現有統計欄位計算 KPI（不寫檔、不動內部狀態）
