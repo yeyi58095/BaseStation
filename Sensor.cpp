@@ -54,7 +54,7 @@ int Sensor::energyForSt(double st) const {
 
 void Sensor::enqueueArrival() {
     if (Qmax >= 0 && (int)q.size() >= Qmax) { drops++; return; }
-    double st = sampleST(); if (st <= 0) st = 1e-9;
+	double st = abs(sampleST()); if (st <= 0) st = 1e-9;
     Packet p;
     p.id     = ++pktSeq;
     p.st     = st;
@@ -72,7 +72,7 @@ bool Sensor::canTransmit() const {
 
 double Sensor::startTx() {
     if (!canTransmit()) return 0.0;
-    Packet p = q.front(); q.pop_front();
+	Packet p = q.front(); q.pop_front();
     serving   = true;
     servingId = p.id;
 

@@ -215,6 +215,7 @@ void Master::run() {
 		case EV_TX_DONE: {
 			Sensor* s = (*sensors)[sid];
 
+
 			// ★ 在結束瞬間補扣尚未扣完的 EP（不花時間）
 			if (sid >= 0 && sid < (int)txEpRemain.size()) {
 				int rem = txEpRemain[sid];
@@ -254,8 +255,8 @@ void Master::run() {
             break;
         }
 
-        case EV_CHARGE_STEP: {
-            if (sid < 0 || sid >= (int)sensors->size()) break;
+		case EV_CHARGE_STEP: {
+			if (sid < 0 || sid >= (int)sensors->size()) break;
             Sensor* s = (*sensors)[sid];
             if (!s) break;
             if (!charging[sid]) break;
@@ -291,44 +292,45 @@ void Master::run() {
         }
 
 		case EV_TX_TICK: {
-            if (sid < 0 || sid >= (int)sensors->size()) break;
-            if (!hapTxBusy || hapTxSid != sid) break; // 保護：只處理當前在傳的那顆
-            Sensor* s = (*sensors)[sid];
-            if (!s || !s->serving) break;
+			break;
+			if (sid < 0 || sid >= (int)sensors->size()) break;
+			if (!hapTxBusy || hapTxSid != sid) break; // 保護：只處理當前在傳的那顆
+			Sensor* s = (*sensors)[sid];
+			if (!s || !s->serving) break;
 
-            // 尚未進入服務（還在 switchover）就對齊開始點
-            if (now < txStartT[sid] - EPS) {
-                felPush(txStartT[sid], EV_TX_TICK, sid);
-                break;
-            }
+			// 尚未進入服務（還在 switchover）就對齊開始點
+			if (now < txStartT[sid] - EPS) {
+				felPush(txStartT[sid], EV_TX_TICK, sid);
+				break;
+			}
 
-            // 若已到終點或不需再扣，由 EV_TX_DONE 收尾
+			// 若已到終點或不需再扣，由 EV_TX_DONE 收尾
 			if (now >= txEndT[sid] - EPS || txEpRemain[sid] <= 0) {
-                break;
-            }
+				break;
+			}
 
-            // ★ 扣 1 EP
-            if (s->energy > 0) s->energy -= 1;
-            if (s->energy < 0) s->energy = 0;
-            txEpRemain[sid]--;
+			// ★ 扣 1 EP
+			if (s->energy > 0) s->energy -= 1;
+			if (s->energy < 0) s->energy = 0;
+			txEpRemain[sid]--;
 
-            logTxTick(now, sid, s->currentServingId(), txEpRemain[sid], s->energy);
+			logTxTick(now, sid, s->currentServingId(), txEpRemain[sid], s->energy);
 
-            // 安排下一個 tick（不可越過 txEndT）
-            if (txEpRemain[sid] > 0) {
-                double remT = txEndT[sid] - now;
-                if (remT > EPS) {
-                    double dt = std::min(txTickPeriod[sid], std::max(EPS, remT));
-                    felPush(now + dt, EV_TX_TICK, sid);
-                }
-            }
+			// 安排下一個 tick（不可越過 txEndT）
+			if (txEpRemain[sid] > 0) {
+				double remT = txEndT[sid] - now;
+				if (remT > EPS) {
+					double dt = std::min(txTickPeriod[sid], std::max(EPS, remT));
+					felPush(now + dt, EV_TX_TICK, sid);
+				}
+			}
             break;
-        }
+		}
 
-        case EV_HAP_POLL: {
-            scheduleIfIdle();
-            break;
-        }
+		case EV_HAP_POLL: {
+			scheduleIfIdle();
+			break;
+		}
         }
 
         if (now >= endTime) break;
@@ -452,8 +454,8 @@ void Master::scheduleIfIdle() {
             hapTxBusy = true; hapTxSid = pickTX;
 
             // 設定逐步扣參數
-            txEpRemain[pickTX]   = epCost;
-            txTickPeriod[pickTX] = (s->txCostPerSec > 0 ? 1.0 / s->txCostPerSec : 1e9);
+			txEpRemain[pickTX]   = epCost;
+			txTickPeriod[pickTX] = (s->txCostPerSec > 0 ? 1.0 / s->txCostPerSec : 1e9);
             txStartT[pickTX]     = now + switchover;
             txEndT[pickTX]       = now + switchover + st_need;
 
