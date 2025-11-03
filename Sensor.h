@@ -21,7 +21,7 @@ public:
     int   servingId;
 
     int pktSeq;
-    int init_preload;
+	int init_preload;
 
     // arrival/service distributions
     int    ITdistri, STdistri;

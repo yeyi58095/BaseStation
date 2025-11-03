@@ -280,31 +280,31 @@ void Master::run() {
                 double capRemain = std::max(0, s->E_cap - s->energy);
                 pendCharge[sid]  = (capRemain > 1 ? 1 : (int)capRemain);
 
-                double dtc = sampleChargeStepDt(s->charge_rate, EPS);
-                chargeStartT[sid] = now;
-                chargeNextDt[sid] = dtc;
-                felPush(now + dtc, EV_CHARGE_STEP, sid);
+				double dtc = sampleChargeStepDt(s->charge_rate, EPS);
+				chargeStartT[sid] = now;
+				chargeNextDt[sid] = dtc;
+				felPush(now + dtc, EV_CHARGE_STEP, sid);
 
-                felPush(now, EV_HAP_POLL, -1);
-                logSnapshot(now, "after CHARGE_TICK");
-            }
-            break;
-        }
+				felPush(now, EV_HAP_POLL, -1);
+				logSnapshot(now, "after CHARGE_TICK");
+			}
+			break;
+		}
 
 		case EV_TX_TICK: {
-			break;
 			if (sid < 0 || sid >= (int)sensors->size()) break;
-			if (!hapTxBusy || hapTxSid != sid) break; // 保護：只處理當前在傳的那顆
+			if (!hapTxBusy || hapTxSid != sid) break;   // 只處理當前正在傳的sensor
+
 			Sensor* s = (*sensors)[sid];
 			if (!s || !s->serving) break;
 
-			// 尚未進入服務（還在 switchover）就對齊開始點
+			// 確保不在 switchover 之前扣；若還沒到 start，對齊 start 再來
 			if (now < txStartT[sid] - EPS) {
 				felPush(txStartT[sid], EV_TX_TICK, sid);
 				break;
 			}
 
-			// 若已到終點或不需再扣，由 EV_TX_DONE 收尾
+			// 若已到終點或沒有要扣的量，由 EV_TX_DONE 收尾
 			if (now >= txEndT[sid] - EPS || txEpRemain[sid] <= 0) {
 				break;
 			}
@@ -316,22 +316,25 @@ void Master::run() {
 
 			logTxTick(now, sid, s->currentServingId(), txEpRemain[sid], s->energy);
 
-			// 安排下一個 tick（不可越過 txEndT）
+			// 安排下一個 tick（避免越過 txEndT；越界的剩餘量交由 DONE 兜底一次扣）
 			if (txEpRemain[sid] > 0) {
-				double remT = txEndT[sid] - now;
-				if (remT > EPS) {
-					double dt = std::min(txTickPeriod[sid], std::max(EPS, remT));
-					felPush(now + dt, EV_TX_TICK, sid);
+				double nextT = now + txTickPeriod[sid];
+				if (nextT < txEndT[sid] - EPS) {
+					felPush(nextT, EV_TX_TICK, sid);
 				}
+				// 否則不再排，剩餘的 rem 由 EV_TX_DONE 一次扣
 			}
-            break;
+
+			break;
 		}
+
+
 
 		case EV_HAP_POLL: {
 			scheduleIfIdle();
 			break;
 		}
-        }
+		}
 
         if (now >= endTime) break;
     }
@@ -428,78 +431,85 @@ void Master::accumulate() {
 }
 
 void Master::scheduleIfIdle() {
-	if (!sensors || sensors->empty()) return;
+    if (!sensors || sensors->empty()) return;
     const int N = (int)sensors->size();
 
     // (A) TX: if idle, pick one
     if (!hapTxBusy) {
-		int pickTX = -1; double bestScore = -1.0;
-		for (int i=0;i<N; ++i) {
-			Sensor* s = (*sensors)[i];
-			if (!s->canTransmit()) continue;
-			double score = dpCoef * (double)s->q.size()
-						 * epCoef * (double)s->energy;
-			if (score > bestScore) { bestScore = score; pickTX = i; }
+        int pickTX = -1;
+        double bestScore = -1.0;
+
+        for (int i = 0; i < N; ++i) {
+            Sensor* s = (*sensors)[i];
+            if (!s) continue;
+            if (!s->canTransmit()) continue; // 需滿足 energy >= max(r_tx, frontNeedEP)
+
+            double score = dpCoef * (double)s->q.size() * epCoef * (double)s->energy;
+            if (score > bestScore) { bestScore = score; pickTX = i; }
         }
-		if (pickTX >= 0) {
+
+        if (pickTX >= 0) {
             Sensor* s = (*sensors)[pickTX];
 
             int    pid      = s->frontId();
             double st_need  = s->frontST(); if (st_need <= EPS) st_need = EPS;
-            int    epCost   = s->frontNeedEP();
+            int    epCost   = s->frontNeedEP();   // = r (方案A下等於 r_tx)
             int    epBefore = s->energy;
 
-			double st = s->startTx(); // ★ 不再在這裡扣 EP（交由 EV_TX_TICK）
+            double st = s->startTx();             // 不扣能量；逐步扣交給 EV_TX_TICK
             if (st <= EPS) st = st_need;
-            hapTxBusy = true; hapTxSid = pickTX;
 
-            // 設定逐步扣參數
-			txEpRemain[pickTX]   = epCost;
-			txTickPeriod[pickTX] = (s->txCostPerSec > 0 ? 1.0 / s->txCostPerSec : 1e9);
+            hapTxBusy = true;
+            hapTxSid  = pickTX;
+
+            // 逐步扣所需的內部狀態
+            txEpRemain[pickTX]   = epCost;                             // 還要扣幾次（每次1EP）
             txStartT[pickTX]     = now + switchover;
             txEndT[pickTX]       = now + switchover + st_need;
+            double span          = std::max(EPS, txEndT[pickTX] - txStartT[pickTX]);
+            int    ticks         = std::max(1, epCost);
+            txTickPeriod[pickTX] = span / (double)ticks;               // 平均間隔
 
             logStartTx(now, pickTX, pid, st_need, epBefore, epCost);
             logSnapshot(now, "after START_TX");
 
-            // 完成事件
+            // 安排完成事件
             felPush(txEndT[pickTX], EV_TX_DONE, pickTX);
 
-            // 第一個 TX_TICK 安排在開始後（並對齊尾端）
+            // 安排第一個逐步扣 tick（對齊開始點後的第一個間隔）
             if (txEpRemain[pickTX] > 0) {
-				double firstDt = std::min(txTickPeriod[pickTX], std::max(EPS, txEndT[pickTX] - txStartT[pickTX]));
+                double firstDt = std::min(txTickPeriod[pickTX],
+                                          std::max(EPS, txEndT[pickTX] - txStartT[pickTX]));
                 felPush(txStartT[pickTX] + firstDt, EV_TX_TICK, pickTX);
             }
         }
     }
 
-	// (B) Charging pipeline (FDM)
+    // (B) Charging pipeline (FDM) — 保持原來邏輯
     int freeSlots = (maxChargingSlots <= 0) ? 0x3fffffff : (maxChargingSlots - chargeActive);
 
-    for (int i=0; i<N && freeSlots > 0; ++i) {
+    for (int i = 0; i < N && freeSlots > 0; ++i) {
         Sensor* s = (*sensors)[i];
         if (!s) continue;
-		if (s->charge_rate <= 0) continue;
+        if (s->charge_rate <= 0) continue;
         if (charging[i]) continue;
-		if (s->energy >= s->E_cap) continue;
+        if (s->energy >= s->E_cap) continue;
 
-		bool needCharge = false;
+        bool needCharge = false;
 
-		if (alwaysCharge) {
-			// 隨時充電：只要沒滿就充
-			needCharge = true;
-		} else {
-			// 原本邏輯：電量不足時才充
-			bool headBlocked = ((int)s->q.size() > 0) && (s->energy < s->frontNeedEP());
-			int gate = std::max(s->r_tx, needEPForHead(i));
-			needCharge = (headBlocked || s->energy < gate);
-		}
+        if (alwaysCharge) {
+            needCharge = true;  // 只要沒滿就充
+        } else {
+            bool headBlocked = ((int)s->q.size() > 0) && (s->energy < s->frontNeedEP());
+            int gate = needEPForHead(i);          // = max(r_tx, frontNeedEP)
+            needCharge = (headBlocked || s->energy < gate);
+        }
 
-		if (needCharge) {
-			startChargeToFull(i);
-			--freeSlots;
-		}
-	}
+        if (needCharge) {
+            startChargeToFull(i);
+            --freeSlots;
+        }
+    }
 }
 
 AnsiString Master::reportOne(int sid) const {

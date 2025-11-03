@@ -43,12 +43,9 @@ double Sensor::sampleST() const {
     }
 }
 
-int Sensor::energyForSt(double st) const {
-	return 1;
-    if (st < 0) st = 0;
-	double need =  txCostPerSec * st;
-	int needInt = (int)std::ceil(need - 1e-12);
-    if (needInt < 1) needInt = 1;
+int Sensor::energyForSt(double /*st*/) const {
+    // 固定每個DP需 r_tx 個EP；確保至少1
+    int needInt = (r_tx <= 0 ? 1 : r_tx);
     return needInt;
 }
 
