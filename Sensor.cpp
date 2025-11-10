@@ -14,7 +14,7 @@ Sensor::Sensor(int id)
   Qmax(100000), drops(0),
   pktSeq(0), init_preload(0),
   // default energy-cost model: downward-compatible
-  txCostBase(0), txCostPerSec(1.0)
+  txCostBase(1.0), txCostPerSec(0.0)
 {
 }
 
@@ -43,11 +43,24 @@ double Sensor::sampleST() const {
     }
 }
 
-int Sensor::energyForSt(double /*st*/) const {
-    // 固定每個DP需 r_tx 個EP；確保至少1
-    int needInt = (r_tx <= 0 ? 1 : r_tx);
+// Sensor.cpp
+int Sensor::energyForSt(double st) const {
+    // needEP = txCostBase + serviceTime * txCostPerSec
+    // 你現在 txCostPerSec=0 ⇒ 退化成固定 r = txCostBase
+    double need = (double)txCostBase + st * txCostPerSec;
+    if (need < 1.0) need = 1.0;
+    int needInt = (int)std::ceil(need);
     return needInt;
 }
+
+bool Sensor::canTransmit() const {
+    if (serving || q.empty()) return false;
+    int need = frontNeedEP();                 // 依上面的 energyForSt() 算
+    int gate = (need > r_tx ? need : r_tx);   // r_tx 保留作為啟動門檻（相容舊版）
+    if (gate > E_cap) gate = E_cap;
+    return energy >= gate;
+}
+
 
 void Sensor::enqueueArrival() {
     if (Qmax >= 0 && (int)q.size() >= Qmax) { drops++; return; }
@@ -57,14 +70,6 @@ void Sensor::enqueueArrival() {
     p.st     = st;
 	p.needEP = energyForSt(st);
     q.push_back(p);
-}
-
-bool Sensor::canTransmit() const {
-	if (serving || q.empty()) return false;
-	int need = frontNeedEP();
-	int gate = (need > r_tx ? need : r_tx);  // keep r_tx as a gate
-	gate = std::min(gate, E_cap);            // ★ 不能比容量還大
-	return energy >= gate;
 }
 
 double Sensor::startTx() {
