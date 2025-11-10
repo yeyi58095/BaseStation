@@ -59,7 +59,8 @@ void HB_SetRandomDistance(const char* dmode,
 
 // «D¶ZÂ÷¼Ò¦¡¡G©T©w txCostBase
 void HB_SetFixedRBase(int rBase);
-
+void HB_SetQueueMax(int qmax);
+void HB_SetSwitchOver(double tau);
 #ifdef __cplusplus
 } // extern "C"
 #endif

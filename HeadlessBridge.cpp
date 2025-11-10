@@ -22,6 +22,20 @@ static unsigned g_dseed     = 0;
 static double   g_pt        = 1.0;      // charge_rate = pt / d^alpha（若你要用）
 static double   g_alpha     = 1.0;
 static int      g_rBase     = -1;       // 非距離模式固定 txCostBase（<0 表未指定）
+static int g_queue_max = -1;
+static double g_tau    = 0.0;     // switchover (polling) latency
+
+
+extern "C" void HB_SetQueueMax(int qmax) {
+    if (qmax <= 0) g_queue_max = -1;  // 0 或負數 → 不覆蓋
+    else g_queue_max = qmax;
+}
+
+void HB_SetSwitchOver(double tau) {
+    if (tau < 0.0) tau = 0.0;
+    g_tau = tau;
+}
+
 
 extern "C" void HB_ResetDistancePolicy(void) {
     g_useD = 0;
@@ -125,7 +139,7 @@ static void CreateSensorsForHeadless(double lambda, double mu, double e, int C,
         s->r_tx         = (r_tx > 0 ? r_tx : 1);
         s->txCostPerSec = 0.0;         // 目前不隨封包長度
         s->txCostBase   = 1.0;         // 預設相容 r=1
-        s->energy       = 0;
+		s->energy       = 0;
 
         if (g_useD) {
             if (g_dseed != 0) rv::reseed(g_dseed + (unsigned)i);
@@ -136,9 +150,11 @@ static void CreateSensorsForHeadless(double lambda, double mu, double e, int C,
         } else {
             if (g_rBase > 0) s->txCostBase = (double)g_rBase;
             else             s->txCostBase = (s->r_tx > 0 ? (double)s->r_tx : 1.0);
-        }
+		}
 
-        s->setQmax(100000);
+
+		if (g_queue_max > 0) s->setQmax(g_queue_max);
+		else                 s->setQmax(100000);
         s->setPreloadInit(0);
         out.push_back(s);
     }
@@ -158,7 +174,7 @@ int RunSimulationCore(
     CreateSensorsForHeadless(lambda, mu, e, C, seed, N, r_tx, slots, alwaysChargeFlag != 0,
                              useD, dDistKind, dP1, dP2, rBase, sensors);
 
-    sim::Master m;
+	sim::Master m;
     m.setSensors(&sensors);
     m.setEndTime((double)T);
 
@@ -167,7 +183,7 @@ int RunSimulationCore(
     m.logStateEachEvent = false;
     m.alwaysCharge      = (alwaysChargeFlag != 0);
     m.setChargingSlots(slots); // 0=不限
-
+	m.setSwitchOver(g_tau);
     m.reset();
     m.run();
 

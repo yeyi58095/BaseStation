@@ -107,6 +107,9 @@ static int DoHeadless() {
 	int alwaysChargeFlag = 1;      // GUI 預設 true
 	AnsiString versionStr = "BaseStation";
 
+	int Qmax = 100000;  // 預設（舊相容）
+
+	double tau  = 0.0;
 	// 距離／rBase 旗標（全可省略＝完全舊行為）
 	int useD = 0;                 // 1=啟用距離策略
 	AnsiString dDist = "";        // "uni|uniform|norm|normal|logn|lognormal|exp|exponential"
@@ -128,7 +131,10 @@ static int DoHeadless() {
     if (GetArgI(L"rtx", tmpi)) r_tx = tmpi;
     if (GetArgI(L"slots", tmpi)) slots = tmpi;
     if (HasFlag(L"alwaysCharge")) alwaysChargeFlag = 1; else alwaysChargeFlag = 0;
-    if (GetArgS(L"version", tmps)) versionStr = tmps;
+	if (GetArgS(L"version", tmps)) versionStr = tmps;
+	if (GetArgI(L"Qmax", tmpi)) Qmax = tmpi;
+	if (GetArgI(L"Q", tmpi)) Qmax = tmpi;
+	if (GetArgD(L"tau",  tmpd)) tau  = tmpd;
 
     if (GetArgI(L"useD", tmpi)) useD = tmpi;
     if (GetArgS(L"dDist", tmps)) dDist = tmps;
@@ -170,36 +176,39 @@ static int DoHeadless() {
 			HB_SetRandomDistance("exponential", 0.0, 0.0, dP1, 0.0, dseed, pt, alpha);
         } else {
 			useD = 0; // 未知模式 → 關閉距離
-        }
-    }
+		}
+	}
 
 	// 如果不用距離、但 rBase 有給 → 固定 txCostBase
-    if (!useD && rBase >= 0) {
-        HB_SetPowerLaw(1.0, 0.0); // 讓 policy 內部知道不靠距離縮放
-        // 其實 rBase 會在 Engine 端套用，不需要 HB 記，但記一下也無妨
-    }
-
+	if (!useD && rBase >= 0) {
+		HB_SetPowerLaw(1.0, 0.0); // 讓 policy 內部知道不靠距離縮放
+		// 其實 rBase 會在 Engine 端套用，不需要 HB 記，但記一下也無妨
+	}
+					HB_SetQueueMax(Qmax);
+					HB_SetSwitchOver(tau);      // <— 新增
 	// log
 	std::ofstream &L = flog;
 	L << "params: mu="<<mu<<", e="<<e<<", C="<<C
 	  <<", lambda="<<lambda<<", T="<<T<<", seed="<<seed
 	  <<", N="<<N<<", rtx="<<r_tx<<", slots="<<slots
 	  <<", alwaysCharge="<<alwaysChargeFlag
+	  <<", Q="<<Qmax<<", tau="<<tau
 	  <<", out="<<outPath.c_str()
-      <<", version="<<versionStr.c_str()<<"\n";
-    L << "distance_policy: useD="<<useD
-      <<", dDist="<<modeNorm.c_str()
+	  <<", version="<<versionStr.c_str()<<"\n";
+
+	L << "distance_policy: useD="<<useD
+	  <<", dDist="<<modeNorm.c_str()
 	  <<", dP1="<<dP1<<", dP2="<<dP2
-      <<", dseed="<<dseed<<", pt="<<pt<<", alpha="<<alpha
-      <<", rBase="<<rBase << "\n";
+	  <<", dseed="<<dseed<<", pt="<<pt<<", alpha="<<alpha
+	  <<", rBase="<<rBase << "\n";
 
 	int rc = RunHeadlessEngine(mu, e, C, lambda, T, seed,
-                               N, r_tx, slots, alwaysChargeFlag,
-                               outPath.c_str(), versionStr.c_str());
+							   N, r_tx, slots, alwaysChargeFlag,
+							   outPath.c_str(), versionStr.c_str());
 
 	L << "[Headless] done, rc=" << rc << "\n";
-    flog.close();
-    return rc;
+	flog.close();
+	return rc;
 }
 
 //---------------------------------------------------------------------------
