@@ -30,7 +30,9 @@ Master::Master()
   recordTrace(true),
   keepLogIds(200),
   logStateEachEvent(true),  // default ON
-   alwaysCharge(false)
+   alwaysCharge(false),
+	 policy(POL_RR),
+  next_rr(0)
 {
     felHead = new EvNode(0.0, EV_DP_ARRIVAL, -1);
 	felHead->next = 0;
@@ -427,73 +429,106 @@ void Master::accumulate() {
         traceEavg_all.push_back((N > 0) ? ((double)totalEP_inst / N) : 0.0);
     }
 
-    prev = now;
+	prev = now;
 }
 
 void Master::scheduleIfIdle() {
     if (!sensors || sensors->empty()) return;
     const int N = (int)sensors->size();
 
-    // (A) TX: if idle, pick one
     if (!hapTxBusy) {
         int pickTX = -1;
-        double bestScore = -1.0;
 
-        for (int i = 0; i < N; ++i) {
-            Sensor* s = (*sensors)[i];
-            if (!s) continue;
-            if (!s->canTransmit()) continue; // 需滿足 energy >= max(r_tx, frontNeedEP)
+        // === Polling 策略選擇 ===
+        if (policy == POL_RR) {
+            // Round-Robin：從 next_rr+1 開始找第一個可傳的
+            for (int k = 0; k < N; ++k) {
+                int i = (next_rr + 1 + k) % N;
+                Sensor* s = (*sensors)[i];
+                if (!s) continue;
+                if (!s->canTransmit()) continue;
+                pickTX = i;
+                next_rr = i;  // 更新指標
+                break;
+            }
+        }
+        else if (policy == POL_DF) {
+            // DF：挑 queue 長度最大的（若相同則 energy 較高者）
+            int bestQ = -1, bestEP = -1;
+            for (int i = 0; i < N; ++i) {
+                Sensor* s = (*sensors)[i];
+                if (!s) continue;
+                if (!s->canTransmit()) continue;
+                int q = (int)s->q.size();
+                int ep = s->energy;
+                if (q > bestQ || (q == bestQ && ep > bestEP)) {
+                    bestQ = q;
+                    bestEP = ep;
+                    pickTX = i;
+				}
+            }
+        }
+        else if (policy == POL_CEDF) {
+            // CEDF：近似 Earliest Deadline → 以最短服務時間者優先
+            double bestST = 1e9;
+            int bestEP = -1;
+            for (int i = 0; i < N; ++i) {
+                Sensor* s = (*sensors)[i];
+                if (!s) continue;
+                if (!s->canTransmit()) continue;
+                if ((int)s->q.size() == 0) continue;
 
-            double score = dpCoef * (double)s->q.size() * epCoef * (double)s->energy;
-            if (score > bestScore) { bestScore = score; pickTX = i; }
+                double st = s->frontST(); if (st <= EPS) st = EPS;
+                int ep = s->energy;
+				if (st < bestST || (fabs(st - bestST) < 1e-12 && ep > bestEP)) {
+                    bestST = st;
+                    bestEP = ep;
+                    pickTX = i;
+                }
+            }
         }
 
+        // === 選中一個 Sensor 後，照你原本的 TX 處理 ===
         if (pickTX >= 0) {
             Sensor* s = (*sensors)[pickTX];
 
             int    pid      = s->frontId();
             double st_need  = s->frontST(); if (st_need <= EPS) st_need = EPS;
-            int    epCost   = s->frontNeedEP();   // = r (方案A下等於 r_tx)
+            int    epCost   = s->frontNeedEP();
             int    epBefore = s->energy;
-
-            double st = s->startTx();             // 不扣能量；逐步扣交給 EV_TX_TICK
-            if (st <= EPS) st = st_need;
+            double st       = s->startTx(); if (st <= EPS) st = st_need;
 
             hapTxBusy = true;
             hapTxSid  = pickTX;
 
-            // 逐步扣所需的內部狀態
-            txEpRemain[pickTX]   = epCost;                             // 還要扣幾次（每次1EP）
+            txEpRemain[pickTX]   = epCost;
             txStartT[pickTX]     = now + switchover;
             txEndT[pickTX]       = now + switchover + st_need;
             double span          = std::max(EPS, txEndT[pickTX] - txStartT[pickTX]);
             int    ticks         = std::max(1, epCost);
-            txTickPeriod[pickTX] = span / (double)ticks;               // 平均間隔
+            txTickPeriod[pickTX] = span / (double)ticks;
 
             logStartTx(now, pickTX, pid, st_need, epBefore, epCost);
             logSnapshot(now, "after START_TX");
 
-            // 安排完成事件
             felPush(txEndT[pickTX], EV_TX_DONE, pickTX);
-
-            // 安排第一個逐步扣 tick（對齊開始點後的第一個間隔）
             if (txEpRemain[pickTX] > 0) {
                 double firstDt = std::min(txTickPeriod[pickTX],
                                           std::max(EPS, txEndT[pickTX] - txStartT[pickTX]));
                 felPush(txStartT[pickTX] + firstDt, EV_TX_TICK, pickTX);
             }
         }
-    }
+	}
 
-    // (B) Charging pipeline (FDM) — 保持原來邏輯
-    int freeSlots = (maxChargingSlots <= 0) ? 0x3fffffff : (maxChargingSlots - chargeActive);
+	// (B) Charging pipeline (FDM) — 保持原來邏輯
+	int freeSlots = (maxChargingSlots <= 0) ? 0x3fffffff : (maxChargingSlots - chargeActive);
 
-    for (int i = 0; i < N && freeSlots > 0; ++i) {
-        Sensor* s = (*sensors)[i];
-        if (!s) continue;
-        if (s->charge_rate <= 0) continue;
-        if (charging[i]) continue;
-        if (s->energy >= s->E_cap) continue;
+	for (int i = 0; i < N && freeSlots > 0; ++i) {
+		Sensor* s = (*sensors)[i];
+		if (!s) continue;
+		if (s->charge_rate <= 0) continue;
+		if (charging[i]) continue;
+		if (s->energy >= s->E_cap) continue;
 
         bool needCharge = false;
 

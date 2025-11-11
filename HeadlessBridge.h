@@ -61,6 +61,10 @@ void HB_SetRandomDistance(const char* dmode,
 void HB_SetFixedRBase(int rBase);
 void HB_SetQueueMax(int qmax);
 void HB_SetSwitchOver(double tau);
+// ---- polling policy ----
+// name: "rr" | "df" | "cedf"（大小寫不敏感）
+void HB_SetPolicy(const char* name);
+int  HB_GetPolicy(void);                    // 0=RR, 1=DF, 2=CEDF
 #ifdef __cplusplus
 } // extern "C"
 #endif

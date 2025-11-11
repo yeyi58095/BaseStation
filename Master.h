@@ -179,6 +179,16 @@ public:
 
 	// 根據現有統計欄位計算 KPI（不寫檔、不動內部狀態）
 	bool computeKPIs(KPIs& out) const;
+
+	public:
+		enum Policy { POL_RR = 0, POL_DF = 1, POL_CEDF = 2 };
+		void setPolicy(int p) { policy = (p==1?POL_DF:(p==2?POL_CEDF:POL_RR)); }
+		Policy getPolicy() const { return policy; }
+
+		Policy policy;
+		int next_rr; // RR 用的循環指標
+
+
 	};
 
 

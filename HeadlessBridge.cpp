@@ -24,6 +24,7 @@ static double   g_alpha     = 1.0;
 static int      g_rBase     = -1;       // 非距離模式固定 txCostBase（<0 表未指定）
 static int g_queue_max = -1;
 static double g_tau    = 0.0;     // switchover (polling) latency
+static int g_policy = 0; // 0=RR, 1=DF, 2=CEDF
 
 
 extern "C" void HB_SetQueueMax(int qmax) {
@@ -184,8 +185,9 @@ int RunSimulationCore(
     m.alwaysCharge      = (alwaysChargeFlag != 0);
     m.setChargingSlots(slots); // 0=不限
 	m.setSwitchOver(g_tau);
+	m.setPolicy(g_policy);
     m.reset();
-    m.run();
+	m.run();
 
     sim::Master::KPIs kpi;
     int ok = m.computeKPIs(kpi) ? 1 : 0;
@@ -213,8 +215,8 @@ int RunSimulationCore(
     double* EP_mean, double* P_es)
 {
     // 直接使用全域策略 g_useD / g_rBase ... 轉呼叫新版
-    return RunSimulationCore(mu, e, C, lambda, T, seed,
-                             N, r_tx, slots, alwaysChargeFlag,
+	return RunSimulationCore(mu, e, C, lambda, T, seed,
+							 N, r_tx, slots, alwaysChargeFlag,
                              /*useD*/ g_useD, /*dDistKind*/ 0, /*dP1*/ 0.0, /*dP2*/ 0.0, /*rBase*/ g_rBase,
                              avg_delay_ms, L, W, loss_rate, EP_mean, P_es);
 }
@@ -244,3 +246,19 @@ extern "C" int RunHeadlessEngine(
     return 0;
 }
 
+extern "C" void HB_SetPolicy(const char* name) {
+    g_policy = 0; // default RR
+	if (!name) return;
+
+#ifdef _WIN32
+    if (stricmp(name, "df") == 0)        g_policy = 1;
+    else if (stricmp(name, "cedf") == 0) g_policy = 2;
+#else
+    if (strcasecmp(name, "df") == 0)        g_policy = 1;
+    else if (strcasecmp(name, "cedf") == 0) g_policy = 2;
+#endif
+}
+
+extern "C" int HB_GetPolicy(void) {
+    return g_policy;
+}
