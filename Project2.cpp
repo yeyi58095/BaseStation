@@ -153,7 +153,7 @@ static int DoHeadless() {
     // 將距離策略設定塞給 HB_*（RunHeadlessEngine 內部會讀）
 	HB_ResetDistancePolicy();
 
-	if (!useD && rBase >= 0) {
+	if (!useD && rBase >= 0) {    // 若大家的 txCostBase都一樣的話 就用指定的
 		HB_SetFixedRBase(rBase);   // <— 這一行是關鍵
 	}
 
