@@ -31,10 +31,10 @@ static int      g_policy    = 0;        // 0=RR, 1=DF, 2=CEDF
 static std::string g_lastOutPath;
 
 // ----------------------------------------------------------------------
-// 一些小工具：路徑處理 & debug dump
+// 路徑處理 & debug dump 小工具
 // ----------------------------------------------------------------------
 
-// 把 "../Paper2/Fig6/out/xxx.csv" 變成 "../Paper2/Fig6"
+// 把 "Paper2/Fig6/out/xxx.csv" 變成 "Paper2/Fig6"
 static std::string figure_dir_from_out(const std::string& outPath)
 {
     std::string dir = outPath;
@@ -56,30 +56,45 @@ static std::string figure_dir_from_out(const std::string& outPath)
     return dir;
 }
 
-// 把目前 sensors 的關鍵參數 dump 成 CSV：PaperX/FigY/sensors_debug.csv
-static void dump_sensors_debug(const std::vector<Sensor*>& sensors)
+// 把目前 sensors 的關鍵參數 dump 成文字檔：PaperX/FigY/sensors_debug.txt
+static void dump_sensors_debug(const std::vector<Sensor*>& sensors,
+                               double lambda, double mu, int C)
 {
     if (g_lastOutPath.empty()) return;
 
     std::string figDir   = figure_dir_from_out(g_lastOutPath);
-    std::string dumpPath = figDir + "/sensors_debug.csv";
+    std::string dumpPath = figDir + "/sensors_debug.txt";
 
-    std::ofstream fout(dumpPath.c_str());
+    std::ofstream fout(dumpPath.c_str());   // 預設 trunc → 每次覆蓋
     if (!fout.is_open()) {
         return;
     }
 
-    // 想看什麼欄位就自己加，這邊先列幾個最重要的
-    fout << "idx,txCostBase,charge_rate,E_cap,r_tx\n";
+    int Qmax_effective = (g_queue_max > 0 ? g_queue_max : 100000);
+
+    fout << "# Sensor configuration debug dump\n";
+    fout << "# lambda = " << lambda
+         << ", mu = "    << mu
+         << ", C = "     << C
+         << ", Q_max = " << Qmax_effective
+         << "\n";
+    fout << "# useD = "  << g_useD
+         << ", dmode = " << g_dmode
+         << ", pt = "    << g_pt
+         << ", alpha = " << g_alpha
+         << ", tau = "   << g_tau
+         << ", policy = " << g_policy
+         << "\n\n";
 
     for (size_t i = 0; i < sensors.size(); ++i) {
         const Sensor* s = sensors[i];
-        fout << i
-             << "," << s->txCostBase
-             << "," << s->charge_rate
-             << "," << s->E_cap
-             << "," << s->r_tx
-             << "\n";
+        fout << "Sensor " << i << ":\n";
+        fout << "  txCostBase (r_i) = " << s->txCostBase << "\n";
+        fout << "  charge_rate (e_i) = " << s->charge_rate << "\n";
+        fout << "  E_cap = " << s->E_cap << "\n";
+        fout << "  Q_max = " << Qmax_effective << "\n";
+        fout << "  r_tx = " << s->r_tx << "\n";
+        fout << "\n";
     }
 }
 
@@ -215,7 +230,7 @@ static void CreateSensorsForHeadless(double lambda, double mu, double e, int C,
                                      int useD, int dDistKind, double dP1, double dP2, int rBase,
                                      std::vector<Sensor*>& out)
 {
-    (void)useD; (void)dDistKind; (void)dP1; (void)dP2; // 我們實際上吃的是全域 g_*
+    (void)useD; (void)dDistKind; (void)dP1; (void)dP2; // 實際吃的是全域 g_*
 
     if (seed == 0) seed = (unsigned int)std::time(NULL);
     rv::reseed(seed);
@@ -305,8 +320,8 @@ int RunSimulationCore(
         if (P_es) *P_es = kpi.P_es;
     }
 
-    // ★ 在刪掉 sensors 前，把這次的 sensor 設定 dump 出去
-    dump_sensors_debug(sensors);
+    // 在刪掉 sensors 前，把這次的 sensor 設定 dump 出去
+    dump_sensors_debug(sensors, lambda, mu, C);
 
     for (size_t i = 0; i < sensors.size(); ++i) delete sensors[i];
     sensors.clear();
@@ -354,10 +369,11 @@ extern "C" int RunHeadlessEngine(
     std::ofstream f(outPath ? outPath : "result.csv");
     if (!f.is_open()) return -30;
 
-    // 注意：這裡只有一列（單 run），多 run 的 aggregate 在 Python 做
-    f << "mu,e,C,lambda,T,seed,avg_delay_ms,L,W,loss_rate,EP_mean,version,timestamp\n";
+    // 跟 Engine.cpp 原本一樣：有 P_es 欄位
+    f << "mu,e,C,lambda,T,seed,avg_delay_ms,L,W,loss_rate,EP_mean,P_es,version,timestamp\n";
     f << mu << "," << e << "," << C << "," << lambda << "," << T << "," << seed
       << "," << avg_delay_ms << "," << L << "," << W << "," << loss_rate << "," << EP_mean
+      << "," << P_es
       << "," << "\"" << ver << "\"" << "," << (long long)std::time(NULL) << "\n";
     f.close();
 
