@@ -1,4 +1,4 @@
-                                                         #ifndef HEADLESS_BRIDGE_H
+#ifndef HEADLESS_BRIDGE_H
 #define HEADLESS_BRIDGE_H
 
 #ifdef __cplusplus
@@ -35,7 +35,7 @@ int RunSimulationCore(
     double* EP_mean, double* P_es
 );
 
-// ================== 距離/能耗 策略（由 Project2.cpp 設定） ==================
+// ================== 距離/能耗/Queue/Policy/Log 策略 ==================
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -59,12 +59,21 @@ void HB_SetRandomDistance(const char* dmode,
 
 // 非距離模式：固定 txCostBase
 void HB_SetFixedRBase(int rBase);
+
+// queue 大小與 polling switchover
 void HB_SetQueueMax(int qmax);
 void HB_SetSwitchOver(double tau);
+
 // ---- polling policy ----
 // name: "rr" | "df" | "cedf"（大小寫不敏感）
 void HB_SetPolicy(const char* name);
 int  HB_GetPolicy(void);                    // 0=RR, 1=DF, 2=CEDF
+
+// ---- log 模式（給 headless CLI 用）----
+void HB_LogNone(void);    // 完全關閉 log
+void HB_LogCSV(void);     // Master 內建 CSV log（run_log.csv）
+void HB_LogHuman(void);   // GUI 用人類可讀 timeline
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

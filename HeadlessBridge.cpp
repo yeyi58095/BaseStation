@@ -27,6 +27,7 @@ static int      g_queue_max = -1;
 static double   g_tau       = 0.0;      // switchover (polling) latency
 static int      g_policy    = 0;        // 0=RR, 1=DF, 2=CEDF
 
+static int      g_logMode   = sim::Master::LOG_NONE;
 // 給 debug 用：這次 run 的 outPath
 static std::string g_lastOutPath;
 
@@ -176,6 +177,22 @@ extern "C" int HB_GetPolicy(void) {
 }
 
 // ----------------------------------------------------------------------
+// Log 模式相關 API（給 headless CLI 用）
+// ----------------------------------------------------------------------
+
+extern "C" void HB_LogNone(void) {
+    g_logMode = sim::Master::LOG_NONE;
+}
+
+extern "C" void HB_LogCSV(void) {
+    g_logMode = sim::Master::LOG_CSV;   // Master 內建的 CSV 模式
+}
+
+extern "C" void HB_LogHuman(void) {
+    g_logMode = sim::Master::LOG_HUMAN; // GUI 用的人類可讀 timeline 模式
+}
+
+// ----------------------------------------------------------------------
 // 距離取樣工具
 // ----------------------------------------------------------------------
 
@@ -298,9 +315,17 @@ int RunSimulationCore(
     m.setSensors(&sensors);
     m.setEndTime((double)T);
 
-    m.logMode           = sim::Master::LOG_NONE;
-    m.recordTrace       = false;
-    m.logStateEachEvent = false;
+    // ★ 使用全域 g_logMode
+    m.logMode = g_logMode;
+
+    if (g_logMode == sim::Master::LOG_NONE) {
+        m.recordTrace       = false;
+        m.logStateEachEvent = false;
+    } else {
+        m.recordTrace       = true;
+        m.logStateEachEvent = true;
+    }
+
     m.alwaysCharge      = (alwaysChargeFlag != 0);
     m.setChargingSlots(slots);     // 0=不限
     m.setSwitchOver(g_tau);        // polling latency
@@ -320,7 +345,7 @@ int RunSimulationCore(
         if (P_es) *P_es = kpi.P_es;
     }
 
-    // 在刪掉 sensors 前，把這次的 sensor 設定 dump 出去
+    // ★ dump sensor 設定
     dump_sensors_debug(sensors, lambda, mu, C);
 
     for (size_t i = 0; i < sensors.size(); ++i) delete sensors[i];
