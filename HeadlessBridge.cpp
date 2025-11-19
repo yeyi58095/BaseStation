@@ -27,7 +27,9 @@ static int      g_queue_max = -1;
 static double   g_tau       = 0.0;      // switchover (polling) latency
 static int      g_policy    = 0;        // 0=RR, 1=DF, 2=CEDF
 
+// Master log mode （對應 sim::Master::LOG_*）
 static int      g_logMode   = sim::Master::LOG_NONE;
+
 // 給 debug 用：這次 run 的 outPath
 static std::string g_lastOutPath;
 
@@ -247,7 +249,8 @@ static void CreateSensorsForHeadless(double lambda, double mu, double e, int C,
                                      int useD, int dDistKind, double dP1, double dP2, int rBase,
                                      std::vector<Sensor*>& out)
 {
-    (void)useD; (void)dDistKind; (void)dP1; (void)dP2; // 實際吃的是全域 g_*
+    (void)useD; (void)dDistKind; (void)dP1; (void)dP2; (void)slots; (void)alwaysCharge;
+    // 實際吃的是全域 g_*，這些參數只是保留原 signature
 
     if (seed == 0) seed = (unsigned int)std::time(NULL);
     rv::reseed(seed);
@@ -298,7 +301,7 @@ static void CreateSensorsForHeadless(double lambda, double mu, double e, int C,
 // 核心（新版簽名）
 // ----------------------------------------------------------------------
 
-int RunSimulationCore(
+static int RunSimulationCore(
     double mu, double e, int C, double lambda, int T, unsigned int seed,
     int N, int r_tx, int slots, int alwaysChargeFlag,
     int useD, int dDistKind, double dP1, double dP2, int rBase,
@@ -315,7 +318,7 @@ int RunSimulationCore(
     m.setSensors(&sensors);
     m.setEndTime((double)T);
 
-    // ★ 使用全域 g_logMode
+    // 使用全域 g_logMode
     m.logMode = g_logMode;
 
     if (g_logMode == sim::Master::LOG_NONE) {
@@ -333,6 +336,19 @@ int RunSimulationCore(
     m.reset();
     m.run();
 
+    // 如果是 human 模式，就把 dumpLogWithSummary 寫成 headless_log.txt
+    if (g_logMode == sim::Master::LOG_HUMAN && !g_lastOutPath.empty()) {
+        AnsiString text = m.dumpLogWithSummary();
+        std::string figDir = figure_dir_from_out(g_lastOutPath);
+        std::string logPath = figDir + "/headless_log.txt";
+
+        std::ofstream flog(logPath.c_str());
+        if (flog.is_open()) {
+            flog << text.c_str();
+            flog.close();
+        }
+    }
+
     sim::Master::KPIs kpi;
     int ok = m.computeKPIs(kpi) ? 1 : 0;
 
@@ -345,7 +361,7 @@ int RunSimulationCore(
         if (P_es) *P_es = kpi.P_es;
     }
 
-    // ★ dump sensor 設定
+    // dump sensor 設定
     dump_sensors_debug(sensors, lambda, mu, C);
 
     for (size_t i = 0; i < sensors.size(); ++i) delete sensors[i];
@@ -358,7 +374,7 @@ int RunSimulationCore(
 // 核心（舊簽名 overloading）
 // ----------------------------------------------------------------------
 
-int RunSimulationCore(
+static int RunSimulationCore(
     double mu, double e, int C, double lambda, int T, unsigned int seed,
     int N, int r_tx, int slots, int alwaysChargeFlag,
     double* avg_delay_ms, double* L, double* W, double* loss_rate,
@@ -373,7 +389,7 @@ int RunSimulationCore(
 }
 
 // ----------------------------------------------------------------------
-// 外層封裝：輸出 CSV（沿用舊 signature）
+// 外層封裝：輸出 CSV
 // ----------------------------------------------------------------------
 
 extern "C" int RunHeadlessEngine(
@@ -381,7 +397,7 @@ extern "C" int RunHeadlessEngine(
     int N, int r_tx, int slots, int alwaysChargeFlag,
     const char* outPath, const char* versionStr)
 {
-    // 記住這次模擬輸出的 CSV 路徑，給 debug dump 用
+    // 記住這次模擬輸出的 CSV 路徑，給 debug dump / headless_log 用
     g_lastOutPath = (outPath && outPath[0]) ? outPath : "result.csv";
 
     double avg_delay_ms = 0, L = 0, W = 0, loss_rate = 0, EP_mean = 0, P_es = 0;

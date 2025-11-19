@@ -1,82 +1,79 @@
-#ifndef HEADLESS_BRIDGE_H
-#define HEADLESS_BRIDGE_H
+ï»¿// HeadlessBridge.h
+#pragma once
+
+// é€™è£¡ä¸éœ€è¦ç‰¹åˆ¥ include VCLï¼Œåªè¦ C interface å°±å¥½
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// ¬J¦³ headless ¤J¤f¡]Ã±¦W¤£ÅÜ¡^
-int RunHeadlessEngine(
-    double mu, double e, int C, double lambda, int T, unsigned int seed,
-    int N, int r_tx, int slots, int alwaysChargeFlag,
-    const char* outPath, const char* versionStr
-);
+// ============ Queue / polling ============
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
+// è¨­å®šæ„Ÿæ¸¬å™¨ queue æœ€å¤§é•·åº¦ï¼ˆ<=0 è¡¨ç¤ºæ²¿ç”¨é è¨­ï¼‰
+void HB_SetQueueMax(int qmax);
 
-// ================= ¨Ñ Engine / ³æ¤¸´ú¸Õ©I¥sªº®Ö¤ß =================
+// è¨­å®š HAP switchover latency tauï¼ˆè¼ªè©¢å»¶é²ï¼‰
+void HB_SetSwitchOver(double tau);
 
-// ·sª©¡G¥]§t¶ZÂ÷/©T©w rBase µ¥°Ñ¼Æ
-int RunSimulationCore(
-    double mu, double e, int C, double lambda, int T, unsigned int seed,
-    int N, int r_tx, int slots, int alwaysChargeFlag,
-    int useD, int dDistKind, double dP1, double dP2, int rBase,
-    double* avg_delay_ms, double* L, double* W, double* loss_rate,
-    double* EP_mean, double* P_es
-);
+// ============ Distance / power-law ============
 
-// ÂÂÃ±¦W overloading¡]«O«ù¦V¤U¬Û®e¡F¤º³¡Âà©I¥s·sª©¨Ã¦Y¥ş°ìµ¦²¤¡^
-int RunSimulationCore(
-    double mu, double e, int C, double lambda, int T, unsigned int seed,
-    int N, int r_tx, int slots, int alwaysChargeFlag,
-    double* avg_delay_ms, double* L, double* W, double* loss_rate,
-    double* EP_mean, double* P_es
-);
-
-// ================== ¶ZÂ÷/¯à¯Ó/Queue/Policy/Log µ¦²¤ ==================
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// ­«¸mµ¦²¤¡]Ãö³¬¶ZÂ÷¡B²MªÅ²M³æ¡B«ì´_¹w³] power-law °Ñ¼Æ»P rBase¡^
+// é‡ç½®è·é›¢èˆ‡ power-law ç­–ç•¥ï¼ˆæ¢å¾©é è¨­ homogeneousï¼‰
 void HB_ResetDistancePolicy(void);
 
-// ª½±µ´£¨Ñ¶ZÂ÷²M³æ¡]¥Ø«e¥ı«O¯d±µ¤f¡A¼È¤£¨Ï¥Î¡^
+// é ç•™ï¼šCSV è·é›¢åˆ—è¡¨ç‰ˆæœ¬ï¼Œç›®å‰ä¸ä½¿ç”¨
 void HB_SetDistanceList(const char* csv_dlist);
 
-// charge_rate = pt / d^alpha¡]­Y alpha=0 µ¥»ù±`¼Æ¡^
+// è¨­å®š power-law åƒæ•¸ï¼šcharge_rate âˆ pt / d^alpha
 void HB_SetPowerLaw(double pt, double alpha);
 
-// ¶Ã¼Æ¶ZÂ÷
-// dmode: "uniform" | "normal" | "lognormal" | "exponential"
+// è¨­å®šè·é›¢åˆ†ä½ˆèˆ‡ power-lawï¼š
+// dmode: "uniform" / "normal" / "lognormal" / "exponential"
+// åƒæ•¸æ„ç¾©ï¼š
+//   uniform:    dmin, dmax
+//   normal:     dmean, dsigma
+//   lognormal:  dmean, dsigmaï¼ˆå°æ•¸ç©ºé–“åƒæ•¸ï¼‰
+//   exponential:dmeanï¼ˆå¹³å‡å€¼ï¼‰
+// dseed:  è·é›¢äº‚æ•¸ç¨®å­
+// pt,alpha: power-law åƒæ•¸
 void HB_SetRandomDistance(const char* dmode,
-                          double dmin, double dmax,     // uniform
-                          double dmean, double dsigma,  // normal/lognormal/exponential(mean)
+                          double dmin, double dmax,
+                          double dmean, double dsigma,
                           unsigned int dseed,
                           double pt, double alpha);
 
-// «D¶ZÂ÷¼Ò¦¡¡G©T©w txCostBase
+// å›ºå®š rBaseï¼ˆæ²’é–‹è·é›¢æ¨¡å¼æ™‚ç”¨ï¼‰ï¼›<0 è¡¨ç¤ºé—œé–‰
 void HB_SetFixedRBase(int rBase);
 
-// queue ¤j¤p»P polling switchover
-void HB_SetQueueMax(int qmax);
-void HB_SetSwitchOver(double tau);
+// ============ Policy ============
 
-// ---- polling policy ----
-// name: "rr" | "df" | "cedf"¡]¤j¤p¼g¤£±Ó·P¡^
+// name: "rr" / "df" / "cedf" ...
 void HB_SetPolicy(const char* name);
-int  HB_GetPolicy(void);                    // 0=RR, 1=DF, 2=CEDF
 
-// ---- log ¼Ò¦¡¡]µ¹ headless CLI ¥Î¡^----
-void HB_LogNone(void);    // §¹¥şÃö³¬ log
-void HB_LogCSV(void);     // Master ¤º«Ø CSV log¡]run_log.csv¡^
-void HB_LogHuman(void);   // GUI ¥Î¤HÃş¥iÅª timeline
+// å›å‚³ç›®å‰ policy codeï¼ˆ0=RR,1=DF,2=CEDFï¼‰
+int  HB_GetPolicy(void);
+
+// ============ Log mode ============
+//
+// --log=none  â†’ HB_LogNone()
+// --log=csv   â†’ HB_LogCSV()
+// --log=human â†’ HB_LogHuman()
+//
+void HB_LogNone(void);
+void HB_LogCSV(void);
+void HB_LogHuman(void);
+
+// ============ Headless å…¥å£ ============
+//
+// mu,e,C,lambda,T,seed,N,r_tx,slots,alwaysChargeFlag ç”± CLI å‚³å…¥
+// outPath:  è¼¸å‡ºçš„ CSV æª”
+// versionStr: CSV è£¡çš„ version æ¬„ä½
+//
+int RunHeadlessEngine(double mu, double e, int C,
+                      double lambda, int T, unsigned int seed,
+                      int N, int r_tx, int slots, int alwaysChargeFlag,
+                      const char* outPath, const char* versionStr);
 
 #ifdef __cplusplus
-} // extern "C"
+}
 #endif
-
-#endif // HEADLESS_BRIDGE_H
 
